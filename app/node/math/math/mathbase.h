@@ -62,6 +62,17 @@ protected:
     kPairCount
   };
 
+  /**
+   * @brief Determine the pairing for two values using the same rules as the
+   *        (legacy) multi-value PairingCalculator, but without the overhead of
+   *        building temporary NodeValueTables.
+   *
+   * Precisely replicates PairingCalculator's behaviour for the common single-value
+   * case: every candidate pairing receives the same weight, so the lowest-indexed
+   * pairing supported by both types wins.
+   */
+  static Pairing GetPairing(const NodeValue &a, const NodeValue &b);
+
   class PairingCalculator {
   public:
     PairingCalculator(const NodeValueTable &table_a, const NodeValueTable &table_b);

@@ -96,23 +96,22 @@ ShaderCode MathNode::GetShaderCode(const ShaderRequest &request) const
 void MathNode::Value(const NodeValueRow &value, const NodeGlobals &globals, NodeValueTable *table) const
 {
   // Auto-detect what values to operate with
-  // FIXME: Very inefficient
-  NodeValueTable at, bt;
-  at.Push(value[kParamAIn]);
-  bt.Push(value[kParamBIn]);
-  PairingCalculator calc(at, bt);
+  const NodeValue &val_a = value[kParamAIn];
+  const NodeValue &val_b = value[kParamBIn];
+
+  Pairing pairing = GetPairing(val_a, val_b);
 
   // Do nothing if no pairing was found
-  if (!calc.FoundMostLikelyPairing()) {
+  if (pairing == kPairNone) {
     return;
   }
 
   return ValueInternal(GetOperation(),
-                       calc.GetMostLikelyPairing(),
+                       pairing,
                        kParamAIn,
-                       calc.GetMostLikelyValueA(),
+                       val_a,
                        kParamBIn,
-                       calc.GetMostLikelyValueB(),
+                       val_b,
                        globals,
                        table);
 }

@@ -485,6 +485,53 @@ bool MathNodeBase::NumberIsNoOp(const MathNodeBase::Operation &op, const float &
   return false;
 }
 
+MathNodeBase::Pairing MathNodeBase::GetPairing(const NodeValue &a, const NodeValue &b)
+{
+  const auto supports = [](Pairing pairing, NodeValue::Type type) {
+    switch (pairing) {
+    case kPairNumberNumber:
+      return NodeValue::type_is_numeric(type);
+    case kPairVecVec:
+      return NodeValue::type_is_vector(type);
+    case kPairMatrixMatrix:
+      return type == NodeValue::kMatrix;
+    case kPairColorColor:
+      return type == NodeValue::kColor;
+    case kPairTextureTexture:
+      return type == NodeValue::kTexture;
+    case kPairVecNumber:
+      return NodeValue::type_is_vector(type) || NodeValue::type_is_numeric(type);
+    case kPairMatrixVec:
+      return type == NodeValue::kMatrix || NodeValue::type_is_vector(type);
+    case kPairNumberColor:
+      return NodeValue::type_is_numeric(type) || type == NodeValue::kColor;
+    case kPairTextureNumber:
+      return type == NodeValue::kTexture || NodeValue::type_is_numeric(type);
+    case kPairTextureColor:
+      return type == NodeValue::kTexture || type == NodeValue::kColor;
+    case kPairTextureMatrix:
+      return type == NodeValue::kTexture || type == NodeValue::kMatrix;
+    case kPairSampleSample:
+      return type == NodeValue::kSamples;
+    case kPairSampleNumber:
+      return type == NodeValue::kSamples || NodeValue::type_is_numeric(type);
+    default:
+      return false;
+    }
+  };
+
+  // All single-value candidates share the same weight, so the first pairing
+  // supported by both types wins (matching PairingCalculator's tie-breaking).
+  for (int i=0;i<kPairCount;i++) {
+    Pairing pairing = static_cast<Pairing>(i);
+    if (supports(pairing, a.type()) && supports(pairing, b.type())) {
+      return pairing;
+    }
+  }
+
+  return kPairNone;
+}
+
 MathNodeBase::PairingCalculator::PairingCalculator(const NodeValueTable &table_a, const NodeValueTable &table_b)
 {
   QVector<int> pair_likelihood_a = GetPairLikelihood(table_a);

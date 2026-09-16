@@ -61,9 +61,10 @@ NodeParamViewItem::NodeParamViewItem(Node *node, NodeParamViewCheckBoxBehavior c
   connect(node_, &Node::LabelChanged, this, &NodeParamViewItem::Retranslate);
   connect(node_, &Node::InputArraySizeChanged, this, &NodeParamViewItem::InputArraySizeChanged);
 
-  // FIXME: Implemented to pick up when an input is set to hidden or not - DEFINITELY not a fast
-  //        way of doing this, but "fine" for now.
-  connect(node_, &Node::InputFlagsChanged, this, &NodeParamViewItem::RecreateBody);
+  // Only the kInputFlagHidden bit affects the widget layout, so rebuild the body only when that
+  // bit actually toggles. Other flag changes (keyframing, connectability, etc.) are irrelevant to
+  // the param view and would force an expensive recreation of every widget for nothing.
+  connect(node_, &Node::InputFlagsChanged, this, &NodeParamViewItem::InputFlagsChanged);
 
   setBackgroundRole(QPalette::Window);
 
@@ -100,6 +101,18 @@ void NodeParamViewItem::RecreateBody()
   body_->SetTimebase(timebase_);
   body_->SetTimeTarget(time_target_);
   SetBody(body_);
+}
+
+void NodeParamViewItem::InputFlagsChanged(const QString &input, const InputFlags &flags)
+{
+  // Rebuild the body only if the hidden bit changed for this input
+  auto it = flags_.find(input);
+  if ((it == flags_.end() || ((it.value() & kInputFlagHidden) != (flags & kInputFlagHidden)))) {
+    flags_.insert(input, flags);
+    RecreateBody();
+  } else {
+    flags_.insert(input, flags);
+  }
 }
 
 int NodeParamViewItem::GetElementY(const NodeInput &c) const

@@ -261,9 +261,21 @@ void Html::WriteCharFormat(QString *style, const QTextCharFormat &fmt)
   }
 
   if (fmt.fontCapitalization() != QFont::MixedCase) {
-    if (fmt.fontCapitalization() == QFont::SmallCaps) {
+    switch (fmt.fontCapitalization()) {
+    case QFont::MixedCase:
+      break;
+    case QFont::AllUppercase:
+      WriteCSSProperty(style, QStringLiteral("text-transform"), QStringLiteral("uppercase"));
+      break;
+    case QFont::AllLowercase:
+      WriteCSSProperty(style, QStringLiteral("text-transform"), QStringLiteral("lowercase"));
+      break;
+    case QFont::SmallCaps:
       WriteCSSProperty(style, QStringLiteral("font-variant"), QStringLiteral("small-caps"));
-      // TODO: Add others
+      break;
+    case QFont::Capitalize:
+      WriteCSSProperty(style, QStringLiteral("text-transform"), QStringLiteral("capitalize"));
+      break;
     }
   }
 

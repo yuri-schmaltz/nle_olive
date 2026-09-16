@@ -226,6 +226,10 @@ protected slots:
   virtual void Retranslate() override;
 
 private:
+  void InputFlagsChanged(const QString &input, const InputFlags &flags);
+
+  void RecreateBody();
+
   NodeParamViewItemBody* body_;
 
   Node* node_;
@@ -240,8 +244,7 @@ private:
 
   KeyframeView::NodeConnections keyframe_connections_;
 
-private slots:
-  void RecreateBody();
+  QHash<QString, InputFlags> flags_;
 
 };
 

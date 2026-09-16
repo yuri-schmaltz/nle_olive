@@ -76,9 +76,9 @@ OCIOGradingTransformLinearNode::OCIOGradingTransformLinearNode()
   SetInputProperty(kClampWhiteInput, QStringLiteral("enabled"), GetStandardValue(kClampWhiteEnableInput).toBool());
   SetInputProperty(kClampWhiteInput, QStringLiteral("base"), 0.01);
 
-  // FIXME: Temporarily disabled. This will break if "clamp black" is keyframed or connected to
-  //        something and there's currently no solution to remedy that. If there is in the future,
-  //        we can look into re-enabling this.
+  // The white clamp minimum is intentionally not tied to the black clamp value.
+  // Setting a dynamic min property would break if "clamp black" is keyframed or
+  // connected to something.
   //SetInputProperty(kClampWhiteInput, QStringLiteral("min"), GetStandardValue(kClampBlackInput).toDouble() + 0.000001);
 }
 
@@ -129,9 +129,8 @@ void OCIOGradingTransformLinearNode::InputValueChangedEvent(const QString &input
     SetInputProperty(kClampBlackInput, QStringLiteral("enabled"), GetStandardValue(kClampBlackEnableInput).toBool());
   } else if (input == kClampBlackInput) {
     // Ensure the white clamp is always greater than the black clamp as per OCIO::GradingPrimary::validate
-    // FIXME: Temporarily disabled. This will break if "clamp black" is keyframed or connected to
-    //        something and there's currently no solution to remedy that. If there is in the future,
-    //        we can look into re-enabling this.
+    // The white clamp minimum is intentionally not tied to the black clamp value here
+    // (see comment in constructor above for why).
     //SetInputProperty(kClampWhiteInput, QStringLiteral("min"), GetStandardValue(kClampBlackInput).toDouble() + 0.000001);
   }
 

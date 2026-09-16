@@ -42,8 +42,9 @@ void ProjectSerializer::Initialize()
 {
   // Make sure to order these from oldest to newest
 
-  // FIXME: Implement this - yes it's a 0.1 project loader
-  //instances_.append(new ProjectSerializer190219);
+  // The 0.1 project format ("ProjectSerializer190219") is not implemented. A 0.1 project uses
+  // a completely different node/evaluator architecture than 1.0, so loading it would require
+  // converting the old nodes into the current node graph and is a large effort on its own.
 
   instances_.append(new ProjectSerializer210528);
   instances_.append(new ProjectSerializer210907);

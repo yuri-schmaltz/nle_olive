@@ -43,7 +43,6 @@ QVector<Color> ColorCoding::colors_ = {
 
 QString ColorCoding::GetColorName(int c)
 {
-  // FIXME: I'm sure we could come up with more creative names for these colors
   switch (c) {
   case kRed:
     return tr("Red");

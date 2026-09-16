@@ -186,7 +186,6 @@ void TimeBasedView::drawForeground(QPainter *painter, const QRectF &rect)
     painter->setBrush(highlight);
     painter->drawRect(playhead_rect);
 
-    // FIXME: Hardcoded...
     painter->setPen(PLAYHEAD_COLOR);
     painter->setBrush(Qt::NoBrush);
     painter->drawLine(QLineF(playhead_rect.topLeft(), playhead_rect.bottomLeft()));

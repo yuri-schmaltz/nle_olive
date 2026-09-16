@@ -315,7 +315,7 @@ void TimelineView::ToolChangedEvent(Tool::Item tool)
     setCursor(Qt::CrossCursor);
     break;
   case Tool::kTrackSelect:
-    setCursor(Qt::SizeHorCursor); // FIXME: Not the ideal cursor
+    setCursor(Qt::SizeHorCursor);
     break;
   default:
     unsetCursor();

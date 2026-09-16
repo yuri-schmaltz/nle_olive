@@ -339,7 +339,8 @@ void RenderProcessor::ProcessVideoFootage(TexturePtr destination, const FootageJ
   QString using_colorspace = stream_data.colorspace();
 
   if (using_colorspace.isEmpty()) {
-    // FIXME:
+    // The stream has no colorspace assigned. This normally means we can use the project's
+    // default input colorspace, but that isn't plumbed through to the render process yet.
     qWarning() << "HAVEN'T GOTTEN DEFAULT INPUT COLORSPACE";
   }
 

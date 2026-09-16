@@ -229,7 +229,7 @@ void ImportTool::DragDrop(TimelineViewMouseEvent *event)
       dst_folder = Core::instance()->GetActiveProject()->root();
     }
 
-    Core::instance()->ImportFiles(dropped_files_, dst_folderTowardsActiveProject);
+    Core::instance()->ImportFiles(dropped_files_, dst_folder);
     event->accept();
   } else {
     event->ignore();

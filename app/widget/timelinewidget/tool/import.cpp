@@ -103,10 +103,42 @@ void ImportTool::DragEnter(TimelineViewMouseEvent *event)
 
       event->accept();
     } else {
+      // No footage could be created from the dropped data
       event->ignore();
     }
+  } else if (mime_formats.contains(QStringLiteral("text/uri-list"))) {
+
+    // We received a list of files from the operating system
+    QByteArray file_data = event->GetMimeData()->data(QStringLiteral("text/uri-list"));
+
+    // Parse the URI list into a list of local files
+    dragged_footage_.clear();
+    dropped_files_.clear();
+
+    foreach (const QString& line, QString(file_data).split(QStringLiteral("\n"))) {
+      QUrl url(line.trimmed());
+
+      if (url.isValid() && url.isLocalFile()) {
+        QString local_file = url.toLocalFile();
+
+        if (QFileInfo::exists(local_file)) {
+          if (!dropped_files_.contains(local_file)) {
+            dropped_files_.append(local_file);
+          }
+        }
+      }
+    }
+
+    if (!dropped_files_.isEmpty()) {
+      drag_start_ = event->GetCoordinates();
+
+      // No ghosts are shown for external files since their duration is unknown until import
+      event->accept();
+    } else {
+      event->ignore();
+    }
+
   } else {
-    // FIXME: Implement dropping from file
     event->ignore();
   }
 }
@@ -186,6 +218,18 @@ void ImportTool::DragDrop(TimelineViewMouseEvent *event)
     DropGhosts(event->GetModifiers() & Qt::ControlModifier, command);
     Core::instance()->undo_stack()->push(command, qApp->translate("ImportTool", "Dropped Footage Into Sequence"));
 
+    event->accept();
+  } else if (!dropped_files_.isEmpty()) {
+    // Import the dropped files into the active project, mirroring what dropping onto the
+    // project explorer does. Any sequences that are part of the active project are the
+    // destination; footage dragged from the filesystem cannot yet be turned into ghosts here
+    // because its media parameters aren't known until the (asynchronous) import completes.
+    Folder* dst_folder = Core::instance()->GetSelectedFolderInActiveProject();
+    if (!dst_folder) {
+      dst_folder = Core::instance()->GetActiveProject()->root();
+    }
+
+    Core::instance()->ImportFiles(dropped_files_, dst_folderTowardsActiveProject);
     event->accept();
   } else {
     event->ignore();

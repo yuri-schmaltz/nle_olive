@@ -58,6 +58,8 @@ private:
 
   DraggedFootageData dragged_footage_;
 
+  QStringList dropped_files_;
+
   int import_pre_buffer_;
 
   rational ghost_offset_;

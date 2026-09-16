@@ -42,9 +42,6 @@ protected:
    * @brief Double click event override
    *
    * Function that signals DoubleClickedView().
-   *
-   * FIXME: This code is the same as the code in ProjectExplorerTreeView. Is there a way to merge these two through
-   * subclassing?
    */
   virtual void mouseDoubleClickEvent(QMouseEvent *event) override;
 

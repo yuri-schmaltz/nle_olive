@@ -189,8 +189,9 @@ QVariant ProjectViewModel::data(const QModelIndex &index, int role) const
 
 QVariant ProjectViewModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-  // Check if we need text data (DisplayRole) and orientation is horizontal
-  // FIXME I'm not 100% sure what happens if the orientation is vertical/if that check is necessary
+  // Only horizontal headers (the tree view's column headers) have custom text. Vertical headers,
+  // when they appear, fall through to QAbstractItemModel::headerData() which returns the default
+  // (index-based) value.
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole) {
     ColumnType column_type = static_cast<ColumnType>(section);
 

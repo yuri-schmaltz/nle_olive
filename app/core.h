@@ -176,8 +176,10 @@ public:
   /**
    * @brief Import a list of files
    *
-   * FIXME: I kind of hate this, it needs a model to update correctly. Is there a way that Items can signal enough to
-   *        make passing references to the model unnecessary?
+   * The destination folder is passed explicitly because the async import task must know where to
+   * create the footage items once it completes, and by then the UI selection may have changed.
+   * The importing footage nodes are inserted by ProjectImportTask itself and signal the project's
+   * graph normally, so no external model synchronization is required.
    *
    * @param urls
    */

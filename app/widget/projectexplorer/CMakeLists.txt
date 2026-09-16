@@ -18,6 +18,7 @@ set(OLIVE_SOURCES
   ${OLIVE_SOURCES}
   widget/projectexplorer/projectexplorer.cpp
   widget/projectexplorer/projectexplorer.h
+  widget/projectexplorer/projectexplorercommon.h
   widget/projectexplorer/projectexplorericonview.cpp
   widget/projectexplorer/projectexplorericonview.h
   widget/projectexplorer/projectexplorericonviewitemdelegate.cpp

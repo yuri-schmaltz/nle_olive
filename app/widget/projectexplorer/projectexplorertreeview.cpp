@@ -22,6 +22,8 @@
 
 #include <QMouseEvent>
 
+#include "projectexplorercommon.h"
+
 namespace olive {
 
 ProjectExplorerTreeView::ProjectExplorerTreeView(QWidget *parent) :
@@ -45,13 +47,9 @@ ProjectExplorerTreeView::ProjectExplorerTreeView(QWidget *parent) :
 
 void ProjectExplorerTreeView::mouseDoubleClickEvent(QMouseEvent *event)
 {
-  // Perform default double click functions
-  QTreeView::mouseDoubleClickEvent(event);
-
-  // QAbstractItemView already has a doubleClicked() signal, but we emit another here for double clicking empty space
-  if (!indexAt(event->pos()).isValid()) {
-    emit DoubleClickedEmptyArea();
-  }
+  ProjectExplorerHandleDoubleClick(this, event,
+                                   [this, event] { QTreeView::mouseDoubleClickEvent(event); },
+                                   [this] { emit DoubleClickedEmptyArea(); });
 }
 
 }

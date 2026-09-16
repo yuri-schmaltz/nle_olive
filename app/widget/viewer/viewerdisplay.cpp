@@ -1074,7 +1074,7 @@ void ViewerDisplayWidget::DrawSubtitleTracks()
 
   bool antialias = OLIVE_CONFIG("AntialiasSubtitles").toBool();
 
-  QPixmap *aa_pixmap;
+  QPixmap *aa_pixmap = nullptr;
   QPainter *text_painter;
   if (antialias) {
     // QPainter only supports anti-aliasing in software, so to achieve it, we draw to a

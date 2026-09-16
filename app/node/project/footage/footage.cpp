@@ -227,6 +227,11 @@ QString Footage::DescribeAudioStream(const AudioParams &params)
 
 QString Footage::DescribeSubtitleStream(const SubtitleParams &params)
 {
+  if (!params.language().isEmpty()) {
+    return tr("%1: Subtitle - %2")
+      .arg(QString::number(params.stream_index()),
+           params.language());
+  }
   return tr("%1: Subtitle")
     .arg(QString::number(params.stream_index()));
 }

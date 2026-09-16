@@ -477,13 +477,14 @@ void PointerTool::InitiateDragInternal(Block *clicked_item,
         if (adjacent) {
           adjacent_ghosts.append(AddGhostFromBlock(adjacent, flipped_mode));
 
-          // Select adjacent's links if applicable
-          // FIXME: The check for `clips.size() == 1` may not be necessary, but I don't know yet.
-          //        I'm only including it to prevent any potentially unintended behavior.
-          if (clips.size() == 1 && !(modifiers & Qt::AltModifier)) {
+          // Select adjacent's links if applicable, as long as they aren't already being trimmed
+          // in this operation (otherwise they'd get a conflicting ghost)
+          if (!(modifiers & Qt::AltModifier)) {
             if (ClipBlock *adjacent_clip = dynamic_cast<ClipBlock*>(adjacent)) {
               for (Block *adjacent_link : adjacent_clip->block_links()) {
-                adjacent_ghosts.append(AddGhostFromBlock(adjacent_link, flipped_mode));
+                if (!clips.contains(adjacent_link)) {
+                  adjacent_ghosts.append(AddGhostFromBlock(adjacent_link, flipped_mode));
+                }
               }
             }
           }

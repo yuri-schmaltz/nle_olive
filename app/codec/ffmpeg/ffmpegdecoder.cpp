@@ -489,6 +489,13 @@ FootageDescription FFmpegDecoder::Probe(const QString &filename, CancelAtom *can
           if (avstream->codecpar->codec_id == AV_CODEC_ID_SUBRIP) {
             SubtitleParams sub;
 
+            if (avstream->metadata) {
+              AVDictionaryEntry *lang = av_dict_get(avstream->metadata, "language", nullptr, 0);
+              if (lang && lang->value) {
+                sub.set_language(QString::fromUtf8(lang->value));
+              }
+            }
+
             AVPacket* pkt = av_packet_alloc();
             {
               Instance instance;

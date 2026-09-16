@@ -98,8 +98,11 @@ FootagePropertiesDialog::FootagePropertiesDialog(QWidget *parent, Footage *foota
       SubtitleParams sp = footage_->GetSubtitleParams(reference.index());
       is_enabled = sp.enabled();
 
-      // FIXME: Language?
-      description = tr("Subtitles");
+      if (sp.language().isEmpty()) {
+        description = tr("Subtitles");
+      } else {
+        description = tr("Subtitles (%1)").arg(sp.language());
+      }
       break;
     }
     default:

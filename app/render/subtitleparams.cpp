@@ -117,6 +117,8 @@ void SubtitleParams::Load(QXmlStreamReader *reader)
       set_stream_index(reader->readElementText().toInt());
     } else if (reader->name() == QStringLiteral("enabled")) {
       set_enabled(reader->readElementText().toInt());
+    } else if (reader->name() == QStringLiteral("language")) {
+      set_language(reader->readElementText());
     } else if (reader->name() == QStringLiteral("subtitles")) {
       while (XMLReadNextStartElement(reader)) {
         if (reader->name() == QStringLiteral("subtitle")) {
@@ -148,6 +150,10 @@ void SubtitleParams::Save(QXmlStreamWriter *writer) const
 {
   writer->writeTextElement(QStringLiteral("streamindex"), QString::number(stream_index_));
   writer->writeTextElement(QStringLiteral("enabled"), QString::number(enabled_));
+
+  if (!language_.isEmpty()) {
+    writer->writeTextElement(QStringLiteral("language"), language_);
+  }
 
   writer->writeStartElement(QStringLiteral("subtitles"));
   for (auto it=this->cbegin(); it!=this->cend(); it++) {

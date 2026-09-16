@@ -633,8 +633,9 @@ bool FFmpegEncoder::InitializeStream(AVMediaType type, AVStream** stream_ptr, AV
     codec_ctx->color_range = params().video_params().color_range() == VideoParams::kColorRangeFull ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
 
     if (params().video_params().interlacing() != VideoParams::kInterlaceNone) {
-      // FIXME: I actually don't know what these flags do, the documentation helpfully doesn't
-      //        explain them at all. I hope using both of them is the right thing to do.
+      // Tell the encoder to process each field independently (interlaced DCT) and to
+      // estimate motion between fields rather than frames, otherwise the encoder will
+      // treat the signal as progressive and produce badly deinterlaced output.
       codec_ctx->flags |= AV_CODEC_FLAG_INTERLACED_DCT | AV_CODEC_FLAG_INTERLACED_ME;
 
 

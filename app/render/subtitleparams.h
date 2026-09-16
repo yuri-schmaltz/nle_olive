@@ -90,10 +90,15 @@ public:
   bool enabled() const { return enabled_; }
   void set_enabled(bool e) { enabled_ = e; }
 
+  const QString& language() const { return language_; }
+  void set_language(const QString& l) { language_ = l; }
+
 private:
   int stream_index_;
 
   bool enabled_;
+
+  QString language_;
 
 };
 

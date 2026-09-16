@@ -57,6 +57,13 @@ public:
     draggers_.append(NodeInputDragger());
   }
 
+  /// Replaces the currently-draggable inputs (used when the number of inputs is dynamic)
+  void SetInputs(const QVector<NodeKeyframeTrackReference> &inputs)
+  {
+    inputs_ = inputs;
+    draggers_.fill(NodeInputDragger(), inputs_.size());
+  }
+
   QVector<NodeInputDragger> &GetDraggers()
   {
     return draggers_;

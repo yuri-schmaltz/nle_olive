@@ -57,6 +57,13 @@ PolygonGenerator::PolygonGenerator()
 
   // Initiate gizmos
   poly_gizmo_ = new PathGizmo(this);
+
+  // Match the drag behavior of individual point handles (delta from drag start)
+  poly_gizmo_->SetDragValueBehavior(DraggableGizmo::kDeltaFromStart);
+
+  // Connect the path gizmo's drag signal to the node's drag handler (the position/bezier
+  // handles do this automatically via AddDraggableGizmo, but poly_gizmo_ is created directly)
+  connect(poly_gizmo_, &DraggableGizmo::HandleMovement, this, &PolygonGenerator::GizmoDragMove);
 }
 
 QString PolygonGenerator::Name() const
@@ -178,6 +185,22 @@ void PolygonGenerator::UpdateGizmoPositions(const NodeValueRow &row, const NodeG
   auto points = row[kPointsInput].toArray();
 
   int current_pos_sz = gizmo_position_handles_.size();
+  int pts_sz = points.size();
+
+  if (current_pos_sz != pts_sz) {
+    // The path gizmo needs its draggers to be in sync with the point count. We don't do this on
+    // every call since doing so would reset any drag in progress; we only do it when the number
+    // of points actually changes.
+    QVector<NodeKeyframeTrackReference> path_inputs;
+    path_inputs.reserve(pts_sz * 2);
+
+    for (int i=0; i<pts_sz; i++) {
+      path_inputs.append(NodeKeyframeTrackReference(NodeInput(this, kPointsInput, i), 0));
+      path_inputs.append(NodeKeyframeTrackReference(NodeInput(this, kPointsInput, i), 1));
+    }
+
+    poly_gizmo_->SetInputs(path_inputs);
+  }
 
   ValidateGizmoVectorSize(gizmo_position_handles_, points.size());
   ValidateGizmoVectorSize(gizmo_bezier_handles_, points.size() * 2);
@@ -200,7 +223,6 @@ void PolygonGenerator::UpdateGizmoPositions(const NodeValueRow &row, const NodeG
     bez_gizmo2->SetSmaller(true);
   }
 
-  int pts_sz = InputArraySize(kPointsInput);
   if (!points.empty()) {
     for (int i=0; i<pts_sz; i++) {
       const Bezier &pt = points.at(i).toBezier();
@@ -235,7 +257,12 @@ void PolygonGenerator::GizmoDragMove(double x, double y, const Qt::KeyboardModif
   DraggableGizmo *gizmo = static_cast<DraggableGizmo*>(sender());
 
   if (gizmo == poly_gizmo_) {
-    // FIXME: Drag all points
+    // Drag all points simultaneously
+    QVector<NodeInputDragger> &draggers = gizmo->GetDraggers();
+    for (int i=0; i<draggers.size(); i+=2) {
+      draggers[i].Drag(draggers[i].GetStartValue().toDouble() + x);
+      draggers[i+1].Drag(draggers[i+1].GetStartValue().toDouble() + y);
+    }
   } else {
     NodeInputDragger &x_drag = gizmo->GetDraggers()[0];
     NodeInputDragger &y_drag = gizmo->GetDraggers()[1];

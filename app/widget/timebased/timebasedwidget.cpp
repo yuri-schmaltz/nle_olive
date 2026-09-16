@@ -759,13 +759,12 @@ void AttemptSnap(std::vector<SnapData> &snap_data,
                  const std::vector<double>& screen_pt,
                  double compare_pt,
                  const std::vector<rational>& start_times,
-                 const rational& compare_time)
+                 const rational& compare_time,
+                 qreal snap_range)
 {
-  const qreal kSnapRange = 10; // FIXME: Hardcoded number
-
   for (size_t i=0;i<screen_pt.size();i++) {
     // Attempt snapping to clip out point
-    if (InRange(screen_pt.at(i), compare_pt, kSnapRange)) {
+    if (InRange(screen_pt.at(i), compare_pt, snap_range)) {
       snap_data.push_back({compare_time, compare_time - start_times.at(i)});
     }
   }
@@ -773,6 +772,10 @@ void AttemptSnap(std::vector<SnapData> &snap_data,
 
 bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, rational *movement, SnapMask snap_points)
 {
+  // Snap range expressed in pixels. Scaled by the logical DPI so that snapping feels consistent
+  // on HiDPI displays.
+  const qreal kSnapRange = 10.0 * (logicalDpiY() / 96.0);
+
   std::vector<double> screen_pt(start_times.size());
 
   for (size_t i=0; i<start_times.size(); i++) {
@@ -784,7 +787,7 @@ bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, ration
   if (snap_points & kSnapToPlayhead) {
     rational playhead_abs_time = GetConnectedNode()->GetPlayhead();
     qreal playhead_pos = TimeToScene(playhead_abs_time);
-    AttemptSnap(potential_snaps, screen_pt, playhead_pos, start_times, playhead_abs_time);
+    AttemptSnap(potential_snaps, screen_pt, playhead_pos, start_times, playhead_abs_time, kSnapRange);
   }
 
   if ((snap_points & kSnapToClips) && GetSnapBlocks()) {
@@ -795,10 +798,10 @@ bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, ration
       qreal rect_right = TimeToScene(b->out());
 
       // Attempt snapping to clip in point
-      AttemptSnap(potential_snaps, screen_pt, rect_left, start_times, b->in());
+      AttemptSnap(potential_snaps, screen_pt, rect_left, start_times, b->in(), kSnapRange);
 
       // Attempt snapping to clip out point
-      AttemptSnap(potential_snaps, screen_pt, rect_right, start_times, b->out());
+      AttemptSnap(potential_snaps, screen_pt, rect_right, start_times, b->out(), kSnapRange);
 
       if (snap_points & kSnapToMarkers) {
         // Snap to clip markers too
@@ -813,8 +816,8 @@ bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, ration
               qreal marker_in_screen = TimeToScene(marker_range.in());
               qreal marker_out_screen = TimeToScene(marker_range.out());
 
-              AttemptSnap(potential_snaps, screen_pt, marker_in_screen, start_times, marker_range.in());
-              AttemptSnap(potential_snaps, screen_pt, marker_out_screen, start_times, marker_range.out());
+              AttemptSnap(potential_snaps, screen_pt, marker_in_screen, start_times, marker_range.in(), kSnapRange);
+              AttemptSnap(potential_snaps, screen_pt, marker_out_screen, start_times, marker_range.out(), kSnapRange);
             }
           }
         }
@@ -832,11 +835,11 @@ bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, ration
       }
 
       qreal marker_pos = TimeToScene(m->time().in());
-      AttemptSnap(potential_snaps, screen_pt, marker_pos, start_times, m->time().in());
+      AttemptSnap(potential_snaps, screen_pt, marker_pos, start_times, m->time().in(), kSnapRange);
 
       if (m->time().in() != m->time().out()) {
         marker_pos = TimeToScene(m->time().out());
-        AttemptSnap(potential_snaps, screen_pt, marker_pos, start_times, m->time().out());
+        AttemptSnap(potential_snaps, screen_pt, marker_pos, start_times, m->time().out(), kSnapRange);
       }
     }
   }
@@ -845,8 +848,8 @@ bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, ration
     const rational &workarea_in = ruler()->GetWorkArea()->in();
     const rational &workarea_out = ruler()->GetWorkArea()->out();
 
-    AttemptSnap(potential_snaps, screen_pt, TimeToScene(workarea_in), start_times, workarea_in);
-    AttemptSnap(potential_snaps, screen_pt, TimeToScene(workarea_out), start_times, workarea_out);
+    AttemptSnap(potential_snaps, screen_pt, TimeToScene(workarea_in), start_times, workarea_in, kSnapRange);
+    AttemptSnap(potential_snaps, screen_pt, TimeToScene(workarea_out), start_times, workarea_out, kSnapRange);
   }
 
   if ((snap_points & kSnapToKeyframes) && GetSnapKeyframes()) {
@@ -869,7 +872,7 @@ bool TimeBasedWidget::SnapPoint(const std::vector<rational> &start_times, ration
 
         qreal key_scene_pt = TimeToScene(time);
 
-        AttemptSnap(potential_snaps, screen_pt, key_scene_pt, start_times, time);
+        AttemptSnap(potential_snaps, screen_pt, key_scene_pt, start_times, time, kSnapRange);
       }
     }
   }

@@ -132,7 +132,7 @@ ViewerWidget::ViewerWidget(ViewerDisplayWidget *display, QWidget *parent) :
   connect(controls_, &PlaybackControls::EndClicked, this, &ViewerWidget::GoToEnd);
   layout->addWidget(controls_);
 
-  // FIXME: Magic number
+  // Default zoom level for the viewer (pixels per second)
   SetScale(48.0);
 
   // Ensures that seeking on the waveform view updates the time as expected

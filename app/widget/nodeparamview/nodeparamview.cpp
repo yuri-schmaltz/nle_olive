@@ -143,7 +143,7 @@ NodeParamView::NodeParamView(bool create_keyframe_view, QWidget *parent) :
     keyframe_view_ = nullptr;
   }
 
-  // Set a default scale - FIXME: Hardcoded
+  // Set the default zoom level for the keyframe view (pixels per second)
   SetScale(120);
 
   // Pickup on widget focus changes

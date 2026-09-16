@@ -169,7 +169,7 @@ TimelineWidget::TimelineWidget(QWidget *parent) :
   view_splitter_->setCollapsible(Track::kAudio, false);
   view_splitter_->setCollapsible(Track::kSubtitle, true);
 
-  // FIXME: Magic number
+  // Default zoom level for a new timeline (pixels per second)
   SetScale(90.0);
 
   SetAutoSetTimebase(false);

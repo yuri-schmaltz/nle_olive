@@ -26,6 +26,7 @@
 #include "common/qtutils.h"
 #include "config/config.h"
 #include "core.h"
+#include "render/audioplaybackcache.h"
 #include "widget/menu/menu.h"
 #include "widget/menu/menushared.h"
 
@@ -135,13 +136,11 @@ void TimeRuler::drawForeground(QPainter *p, const QRectF &rect)
     long_interval = width_of_minute;
     long_rate = 60;
     short_interval = width_of_second;
-  } else if (width_of_frame < doubled_gap) {
+  } else {
+    // At the deepest zoom, use the second as the long interval and individual frames as the short
+    // interval. Frames themselves cannot be subdivided further at this timebase.
     long_interval = width_of_second;
     long_rate = qRound(timebase_flipped_dbl_);
-    short_interval = width_of_frame;
-  } else {
-    // FIXME: Implement this...
-    long_interval = width_of_second;
     short_interval = width_of_frame;
   }
 
@@ -191,8 +190,10 @@ void TimeRuler::drawForeground(QPainter *p, const QRectF &rect)
   int last_short_unit = -1;
   int last_text_draw = INT_MIN;
 
-  // FIXME: Hardcoded number
-  const int kAverageTextWidth = 200;
+  // Estimate the widest timecode string ("HH:MM:SS:FF" plus optional prefix/suffix) so that we
+  // can draw text that overlaps the visible area correctly
+  const int kAverageTextWidth = qMax(QtUtils::QFontMetricsWidth(fm, QStringLiteral("00:00:00:00")),
+                                     QtUtils::QFontMetricsWidth(fm, QStringLiteral("  00:00:00:00")));
 
   for (int i=GetScroll()-kAverageTextWidth;i<GetScroll()+width()+kAverageTextWidth;i++) {
     double screen_pt = static_cast<double>(i);
@@ -251,13 +252,19 @@ void TimeRuler::drawForeground(QPainter *p, const QRectF &rect)
 
   // If cache status is enabled
   if (show_cache_status_ && playback_cache_ && playback_cache_->HasValidatedRanges()) {
-    // FIXME: Hardcoded to get video length, if we ever need audio length, this will have to change
     int h = PlaybackCache::GetCacheIndicatorHeight();
     QRect cache_rect(0, height() - h, width(), h);
 
     if (ViewerOutput *viewer = dynamic_cast<ViewerOutput*>(playback_cache_->parent())) {
-      int right = TimeToScene(viewer->GetVideoLength());
-      cache_rect.setWidth(std::max(0, right));
+      // Video caches cover the video length, audio caches cover the audio length
+      rational indicator_length;
+      if (dynamic_cast<AudioPlaybackCache*>(playback_cache_) != nullptr) {
+        indicator_length = viewer->GetAudioLength();
+      } else {
+        indicator_length = viewer->GetVideoLength();
+      }
+
+      cache_rect.setWidth(qMax(0.0, TimeToScene(indicator_length)));
     }
 
     if (cache_rect.width() > 0) {

@@ -445,7 +445,18 @@ ViewerTextEditorToolBar::ViewerTextEditorToolBar(QWidget *parent) :
 
     AddSpacer(row_layout);
 
-    row_layout->addWidget(new QLabel(tr("Stretch: "))); // FIXME: Procure icon
+    auto MakeTextIconButton = [this, &row_layout](const QIcon &ic, const QString &tooltip) {
+      QPushButton *btn = new QPushButton();
+      btn->setIcon(ic);
+      btn->setFixedSize(fontMetrics().height() + 8, fontMetrics().height() + 8);
+      btn->setToolTip(tooltip);
+      btn->setFocusPolicy(Qt::NoFocus);
+      btn->setEnabled(false);
+      row_layout->addWidget(btn);
+      return btn;
+    };
+
+    MakeTextIconButton(icon::TextStretch, tr("Stretch"));
 
     stretch_slider_ = new IntegerSlider();
     stretch_slider_->SetMinimum(0);
@@ -455,8 +466,7 @@ ViewerTextEditorToolBar::ViewerTextEditorToolBar(QWidget *parent) :
     connect(stretch_slider_, &IntegerSlider::ValueChanged, this, &ViewerTextEditorToolBar::StretchChanged);
     row_layout->addWidget(stretch_slider_);
 
-    row_layout->addWidget(new QLabel(tr("Kerning: "))); // FIXME: Procure icon
-
+    MakeTextIconButton(icon::TextKerning, tr("Kerning"));
     kerning_slider_ = new FloatSlider();
     kerning_slider_->SetMinimum(0);
     kerning_slider_->SetDefaultValue(100);
@@ -466,8 +476,7 @@ ViewerTextEditorToolBar::ViewerTextEditorToolBar(QWidget *parent) :
     connect(kerning_slider_, &FloatSlider::ValueChanged, this, &ViewerTextEditorToolBar::KerningChanged);
     row_layout->addWidget(kerning_slider_);
 
-    row_layout->addWidget(new QLabel(tr("Line Height: "))); // FIXME: Procure icon
-
+    MakeTextIconButton(icon::TextLineHeight, tr("Line Height"));
     line_height_slider_ = new FloatSlider();
     line_height_slider_->SetMinimum(0);
     line_height_slider_->SetDefaultValue(100);

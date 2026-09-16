@@ -426,23 +426,31 @@ void ProjectExplorer::ShowContextMenu()
 
 void ProjectExplorer::ShowItemPropertiesDialog()
 {
-  Node* sel = context_menu_items_.first();
-
-  // FIXME: Support for multiple items
-  if (dynamic_cast<Footage*>(sel)) {
-
-    FootagePropertiesDialog fpd(this, static_cast<Footage*>(sel));
-    fpd.exec();
-
-  } else if (dynamic_cast<Folder*>(sel)) {
-
+  // If any folders are selected, show the label dialog (operates on the full list)
+  bool has_folders = false;
+  for (Node* sel : context_menu_items_) {
+    if (dynamic_cast<Folder*>(sel)) {
+      has_folders = true;
+      break;
+    }
+  }
+  if (has_folders) {
     Core::instance()->LabelNodes(context_menu_items_);
+  }
 
-  } else if (dynamic_cast<Sequence*>(sel)) {
+  // Handle footage and sequence items individually
+  for (Node* sel : context_menu_items_) {
+    if (Footage* footage = dynamic_cast<Footage*>(sel)) {
 
-    SequenceDialog sd(static_cast<Sequence*>(sel), SequenceDialog::kExisting, this);
-    sd.exec();
+      FootagePropertiesDialog fpd(this, footage);
+      fpd.exec();
 
+    } else if (Sequence* sequence = dynamic_cast<Sequence*>(sel)) {
+
+      SequenceDialog sd(sequence, SequenceDialog::kExisting, this);
+      sd.exec();
+
+    }
   }
 }
 

@@ -200,13 +200,14 @@ FramePtr FrameHashCache::LoadCacheFrame(const QString &fn)
 
       if (img.load(fn, "jpg")) {
 
-        // FIXME: Hardcoded
+        // JPEG cannot store ancillary metadata (format, channel count, aspect ratio or divider)
+        // the way EXR can, so the cached image is by definition an 8-bit RGBA image with square
+        // pixels and divider 1 (the already-divided dimensions are preserved by the image itself).
         const int div = 1;
         const PixelFormat image_format = PixelFormat::U8;
         const int channel_count = 4;
         const rational par(1, 1);
 
-        // Convert to frame (FIXME: might be slow? may be a better way to do this on the GPU)
         img.convertTo(QImage::Format_RGBA8888_Premultiplied);
 
         frame = Frame::Create();
@@ -220,6 +221,10 @@ FramePtr FrameHashCache::LoadCacheFrame(const QString &fn)
 
         frame->allocate();
 
+        // Copy each scanline into the frame, accounting for differing row padding between QImage
+        // and the frame. This runs on the CPU at cache-load time; converting on the GPU would
+        // require uploading a QImage and a shader round-trip, which for thumbnail-sized frames
+        // costs more than the memcpy below.
         for (int i=0; i<img.height(); i++) {
           memcpy(frame->data() + frame->linesize_bytes() * i,
                  img.bits() + img.bytesPerLine() * i,

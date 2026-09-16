@@ -22,6 +22,9 @@
 
 #include <iostream>
 
+#include <sys/ioctl.h>
+#include <unistd.h>
+
 namespace olive {
 
 CLIProgressDialog::CLIProgressDialog(const QString& title, QObject *parent) :
@@ -42,8 +45,13 @@ void CLIProgressDialog::Update()
     drawn_ = true;
   }
 
-  // FIXME: Get real column count
+  // Query the terminal width so the progress bar wraps correctly, falling back to 80 columns when
+  // standard output is not a TTY (e.g. output is being piped or redirected)
   int columns = 80;
+  struct winsize ws;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+    columns = ws.ws_col;
+  }
 
   int title_columns = columns / 2 - 1;
 

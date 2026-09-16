@@ -88,8 +88,10 @@ void AudioWaveformView::drawForeground(QPainter *p, const QRectF &rect)
   DrawWorkArea(p);
   DrawMarkers(p);
 
-  // Draw waveform
-  p->setPen(QColor(64, 255, 160)); // FIXME: Hardcoded color
+  // Draw waveform using the theme's text color so it adapts to light/dark palettes
+  QColor waveform_color = palette().text().color();
+  waveform_color.setAlpha(200);
+  p->setPen(waveform_color);
   wave->Draw(p, rect.toRect(), GetScale(), SceneToTime(GetScroll()));
 
   // Draw playhead

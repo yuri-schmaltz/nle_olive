@@ -60,6 +60,23 @@ public:
     return video_conversion_fmt_;
   }
 
+  /**
+   * @brief Configure this encoder for two-pass ratecontrol
+   *
+   * Pass 1 generates the ratecontrol statistics file (no meaningful output is
+   * produced). Pass 2 consumes those statistics to produce the final file.
+   * Single-pass encoding remains the default when this is not called.
+   */
+  void SetVideoPass(int pass)
+  {
+    pass_ = pass;
+  }
+
+  void SetStatsFilename(const QString& stats_filename)
+  {
+    stats_filename_ = stats_filename;
+  }
+
 private:
   /**
    * @brief Handle an FFmpeg error code
@@ -103,6 +120,10 @@ private:
 
   AVStream* subtitle_stream_;
   AVCodecContext* subtitle_codec_ctx_;
+
+  int pass_;
+
+  QString stats_filename_;
 
   bool open_;
 

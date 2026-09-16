@@ -53,6 +53,11 @@ protected:
 private:
   bool WriteAudioLoop(const TimeRange &time, const SampleBuffer &samples);
 
+  bool RenderPass(int pass, const EncodingParams &params, const QString &real_filename,
+                  const TimeRangeList &video_range, const TimeRangeList &audio_range,
+                  const TimeRange &subtitle_range, const QSize &force_size,
+                  const QMatrix4x4 &force_matrix);
+
   ProjectCopier *copier_;
 
   QHash<rational, FramePtr> time_map_;
@@ -74,6 +79,8 @@ private:
   rational audio_time_;
 
   TimeRange export_range_;
+
+  QString stats_filename_;
 
 };
 

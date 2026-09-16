@@ -20,6 +20,7 @@
 
 #include "export.h"
 
+#include "codec/ffmpeg/ffmpegencoder.h"
 #include "node/color/colormanager/colormanager.h"
 
 namespace olive {
@@ -61,50 +62,8 @@ bool ExportTask::Run()
 
   // If we're exporting to a sidecar subtitle file, disable the subtitles in the main encoder
   bool subtitles_enabled = params_.subtitles_enabled();
-  EncodingParams sidecar_params = params_;
   if (subtitles_enabled && params_.subtitles_are_sidecar()) {
     params_.DisableSubtitles();
-  }
-
-  encoder_ = std::shared_ptr<Encoder>(Encoder::CreateFromParams(params_));
-
-  if (!encoder_) {
-    SetError(tr("Failed to create encoder"));
-    return false;
-  }
-
-  if (!encoder_->Open()) {
-    SetError(tr("Failed to open file: %1").arg(encoder_->GetError()));
-    return false;
-  }
-
-  if (subtitles_enabled && params_.subtitles_are_sidecar()) {
-    // Construct sidecar params
-    sidecar_params.DisableVideo();
-    sidecar_params.DisableAudio();
-
-    QString sidecar_filename;
-    {
-      QFileInfo fi(real_filename);
-      sidecar_filename = fi.completeBaseName();
-      sidecar_filename.append('.');
-      sidecar_filename.append(ExportFormat::GetExtension(sidecar_params.subtitle_sidecar_fmt()));
-      sidecar_filename = fi.dir().filePath(sidecar_filename);
-    }
-    sidecar_params.SetFilename(sidecar_filename);
-
-    subtitle_encoder_ = std::shared_ptr<Encoder>(Encoder::CreateFromFormat(sidecar_params.subtitle_sidecar_fmt(), sidecar_params));
-    if (!subtitle_encoder_) {
-      SetError(tr("Failed to create subtitle encoder"));
-      return false;
-    }
-
-    if (!subtitle_encoder_->Open()) {
-      SetError(tr("Failed to open subtitle sidecar file: %1").arg(sidecar_filename));
-      return false;
-    }
-  } else {
-    subtitle_encoder_ = encoder_;
   }
 
   if (params_.has_custom_range()) {
@@ -116,6 +75,7 @@ bool ExportTask::Run()
   }
 
   frame_time_ = 0;
+  audio_time_ = 0;
 
   QSize video_force_size;
   QMatrix4x4 video_force_matrix;
@@ -165,24 +125,57 @@ bool ExportTask::Run()
     subtitle_range = export_range_;
   }
 
-  Render(color_manager_, video_range, audio_range, subtitle_range, RenderMode::kOnline, nullptr,
-         video_force_size, video_force_matrix, encoder_->GetDesiredPixelFormat(),
-         VideoParams::kRGBAChannelCount, color_processor_);
+  // Two-pass ratecontrol is requested when the selected video codec section
+  // (H.264/H.265) exposes it and the user toggled it on for a bit rate or file
+  // size target. In that case the video is rendered twice: the first pass only
+  // produces the statistics needed to optimize the bit distribution, the second
+  // pass performs the actual encoding using those statistics.
+  const bool two_pass = params_.video_enabled()
+      && params_.video_option(QStringLiteral("ove_twopass")) == QStringLiteral("1");
 
-  bool success = true;
+  bool success;
 
-  encoder_->Close();
-  if (!encoder_->GetError().isEmpty()) {
-    SetError(encoder_->GetError());
-    success = false;
-  }
+  if (two_pass) {
 
-  if (subtitle_encoder_ != encoder_) {
-    subtitle_encoder_->Close();
-    if (!subtitle_encoder_->GetError().isEmpty()) {
-      SetError(subtitle_encoder_->GetError());
-      success = false;
+    // The statistics file must be shared between both passes, so it's derived
+    // from the real output filename rather than any temporary one
+    stats_filename_ = real_filename + QStringLiteral(".2pass.log");
+
+    // First pass: encode video only to a temporary file. The output of this
+    // pass is discarded after encoding, only the stats file is kept.
+    EncodingParams pass1_params = params_;
+    pass1_params.DisableAudio();
+    pass1_params.DisableSubtitles();
+    pass1_params.SetFilename(FileFunctions::GetSafeTemporaryFilename(real_filename));
+
+    success = RenderPass(1, pass1_params, real_filename, video_range, TimeRangeList(), TimeRange(),
+                         video_force_size, video_force_matrix);
+
+    // Remove the first pass' temporary file once only its stats are needed
+    QFile::remove(pass1_params.filename());
+
+    if (success) {
+      // Reset render state between passes
+      frame_time_ = 0;
+      audio_time_ = 0;
+      time_map_.clear();
+      audio_map_.clear();
+
+      // Second pass: perform the actual encoding
+      success = RenderPass(2, params_, real_filename, video_range, audio_range, subtitle_range,
+                           video_force_size, video_force_matrix);
     }
+
+    // The ratecontrol statistics are no longer needed; clean them up (libx264
+    // may also write a lookahead/mbtree file during the second pass)
+    QFile::remove(stats_filename_);
+    QFile::remove(stats_filename_ + QStringLiteral(".mbtree"));
+
+  } else {
+
+    success = RenderPass(2, params_, real_filename, video_range, audio_range, subtitle_range,
+                         video_force_size, video_force_matrix);
+
   }
 
   // If cancelled, delete the file we made, which is always a file we created since we write to a
@@ -194,6 +187,85 @@ bool ExportTask::Run()
     if (!FileFunctions::RenameFileAllowOverwrite(params_.filename(), real_filename)) {
       SetError(tr("Failed to overwrite \"%1\". Export has been saved as \"%2\" instead.")
                .arg(real_filename, params_.filename()));
+      success = false;
+    }
+  }
+
+  return success;
+}
+
+bool ExportTask::RenderPass(int pass, const EncodingParams &params, const QString &real_filename,
+                            const TimeRangeList &video_range, const TimeRangeList &audio_range,
+                            const TimeRange &subtitle_range, const QSize &force_size,
+                            const QMatrix4x4 &force_matrix)
+{
+  encoder_ = std::shared_ptr<Encoder>(Encoder::CreateFromParams(params));
+
+  if (!encoder_) {
+    SetError(tr("Failed to create encoder"));
+    return false;
+  }
+
+  if (FFmpegEncoder* ffmpeg_encoder = qobject_cast<FFmpegEncoder*>(encoder_.get())) {
+    // Two-pass is only configured when a stats filename has been set up; a
+    // single-pass export must never enable ratecontrol passes
+    if (!stats_filename_.isEmpty()) {
+      ffmpeg_encoder->SetVideoPass(pass);
+      ffmpeg_encoder->SetStatsFilename(stats_filename_);
+    }
+  }
+
+  if (!encoder_->Open()) {
+    SetError(tr("Failed to open file: %1").arg(encoder_->GetError()));
+    return false;
+  }
+
+  // The subtitle stream is only produced in the final pass
+  bool subtitles_enabled = params.subtitles_enabled();
+  EncodingParams sidecar_params = params;
+  if (subtitles_enabled && params.subtitles_are_sidecar()) {
+    // Construct sidecar params
+    sidecar_params.DisableVideo();
+    sidecar_params.DisableAudio();
+
+    QString sidecar_filename;
+    {
+      QFileInfo fi(real_filename);
+      sidecar_filename = fi.completeBaseName();
+      sidecar_filename.append('.');
+      sidecar_filename.append(ExportFormat::GetExtension(sidecar_params.subtitle_sidecar_fmt()));
+      sidecar_filename = fi.dir().filePath(sidecar_filename);
+    }
+    sidecar_params.SetFilename(sidecar_filename);
+
+    subtitle_encoder_ = std::shared_ptr<Encoder>(Encoder::CreateFromFormat(sidecar_params.subtitle_sidecar_fmt(), sidecar_params));
+    if (!subtitle_encoder_) {
+      SetError(tr("Failed to create subtitle encoder"));
+      return false;
+    }
+
+    if (!subtitle_encoder_->Open()) {
+      SetError(tr("Failed to open subtitle sidecar file: %1").arg(sidecar_filename));
+      return false;
+    }
+  } else {
+    subtitle_encoder_ = encoder_;
+  }
+
+  bool success = Render(color_manager_, video_range, audio_range, subtitle_range, RenderMode::kOnline,
+                        nullptr, force_size, force_matrix, encoder_->GetDesiredPixelFormat(),
+                        VideoParams::kRGBAChannelCount, color_processor_);
+
+  encoder_->Close();
+  if (!encoder_->GetError().isEmpty()) {
+    SetError(encoder_->GetError());
+    success = false;
+  }
+
+  if (subtitle_encoder_ != encoder_) {
+    subtitle_encoder_->Close();
+    if (!subtitle_encoder_->GetError().isEmpty()) {
+      SetError(subtitle_encoder_->GetError());
       success = false;
     }
   }

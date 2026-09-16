@@ -101,8 +101,6 @@ H264Section::H264Section(int default_crf, QWidget *parent) :
 
 void H264Section::AddOpts(EncodingParams *params)
 {
-  // FIXME: Implement two-pass
-
   CompressionMethod method = static_cast<CompressionMethod>(compression_method_stack_->currentIndex());
 
   // This option is not used by the encoder (nor is anything with the ove_ prefix), it's to help us
@@ -141,6 +139,13 @@ void H264Section::AddOpts(EncodingParams *params)
     params->set_video_max_bit_rate(max_rate);
     params->set_video_buffer_size(2000000);
 
+    // Persist the two-pass selection so it survives a render restart (it is
+    // consumed by the export task, not FFmpeg itself, hence the ove_ prefix)
+    bool two_pass = (method == kTargetBitRate)
+        ? bitrate_section_->GetTwoPass()
+        : filesize_section_->GetTwoPass();
+    params->set_video_option(QStringLiteral("ove_twopass"), two_pass ? QStringLiteral("1") : QStringLiteral("0"));
+
   }
 
   params->set_video_option(QStringLiteral("preset"), QString::number(preset_combobox_->currentIndex()));
@@ -157,14 +162,17 @@ void H264Section::SetOpts(const EncodingParams *p)
   } else {
     int64_t target_rate = p->video_bit_rate();
     int64_t max_rate = p->video_max_bit_rate();
+    bool two_pass = p->video_option(QStringLiteral("ove_twopass")) == QStringLiteral("1");
 
     if (method == kTargetBitRate) {
       // Use user-supplied values for the bit rate
       bitrate_section_->SetTargetBitRate(target_rate);
       bitrate_section_->SetMaximumBitRate(max_rate);
+      bitrate_section_->SetTwoPass(two_pass);
     } else {
       // Calculate the bit rate from the file size divided by the sequence length in seconds (bits per second)
       filesize_section_->SetFileSize(p->video_option(QStringLiteral("ove_targetfilesize")).toLongLong());
+      filesize_section_->SetTwoPass(two_pass);
     }
   }
 }
@@ -229,8 +237,13 @@ H264BitRateSection::H264BitRateSection(QWidget *parent) :
 
   layout->addWidget(new QLabel(tr("Two-Pass")), row, 0);
 
-  QCheckBox* two_pass_box = new QCheckBox();
-  layout->addWidget(two_pass_box, row, 1);
+  two_pass_checkbox_ = new QCheckBox();
+  two_pass_checkbox_->setToolTip(tr("Encode the video twice: the first pass analyzes the footage "
+                                    "to calculate the optimal bit distribution, while the second "
+                                    "pass performs the actual encoding. The result is better quality "
+                                    "at the given bit rate, at the cost of approximately double the "
+                                    "encoding time."));
+  layout->addWidget(two_pass_checkbox_, row, 1);
 
   // Bit rate defaults
   target_rate_->SetValue(16.0);
@@ -257,6 +270,16 @@ void H264BitRateSection::SetMaximumBitRate(int64_t b)
   max_rate_->SetValue(double(b) * 0.000001);
 }
 
+bool H264BitRateSection::GetTwoPass() const
+{
+  return two_pass_checkbox_->isChecked();
+}
+
+void H264BitRateSection::SetTwoPass(bool e)
+{
+  two_pass_checkbox_->setChecked(e);
+}
+
 H264FileSizeSection::H264FileSizeSection(QWidget *parent) :
   QWidget(parent)
 {
@@ -275,8 +298,13 @@ H264FileSizeSection::H264FileSizeSection(QWidget *parent) :
 
   layout->addWidget(new QLabel(tr("Two-Pass")), row, 0);
 
-  QCheckBox* two_pass_box = new QCheckBox();
-  layout->addWidget(two_pass_box, row, 1);
+  two_pass_checkbox_ = new QCheckBox();
+  two_pass_checkbox_->setToolTip(tr("Encode the video twice: the first pass analyzes the footage "
+                                    "to calculate the optimal bit distribution, while the second "
+                                    "pass performs the actual encoding. The result is better quality "
+                                    "at the given file size, at the cost of approximately double the "
+                                    "encoding time."));
+  layout->addWidget(two_pass_checkbox_, row, 1);
 
   // File size defaults
   file_size_->SetValue(700.0);
@@ -292,6 +320,16 @@ void H264FileSizeSection::SetFileSize(int64_t f)
 {
   // Convert bits back to megabytes
   file_size_->SetValue(double(f) / 8.0 / 1024.0 / 1024.0);
+}
+
+bool H264FileSizeSection::GetTwoPass() const
+{
+  return two_pass_checkbox_->isChecked();
+}
+
+void H264FileSizeSection::SetTwoPass(bool e)
+{
+  two_pass_checkbox_->setChecked(e);
 }
 
 H265Section::H265Section(QWidget *parent) :

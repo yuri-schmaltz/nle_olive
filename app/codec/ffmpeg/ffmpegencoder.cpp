@@ -44,6 +44,7 @@ FFmpegEncoder::FFmpegEncoder(const EncodingParams &params) :
   audio_codec_ctx_(nullptr),
   audio_resample_ctx_(nullptr),
   audio_frame_(nullptr),
+  pass_(0),
   open_(false)
 {
 }
@@ -684,6 +685,24 @@ bool FFmpegEncoder::InitializeStream(AVMediaType type, AVStream** stream_ptr, AV
         codec_ctx->color_trc = AVCOL_TRC_BT709;
         codec_ctx->colorspace = AVCOL_SPC_BT709;
       }
+    }
+
+    // Set two-pass ratecontrol options. The flags are interpreted by the
+    // codec (e.g. libx264, libx265) to enable their internal 2pass ratecontrol,
+    // while "passlogfile" specifies the shared statistics filename that must be
+    // identical between the two passes. Single-pass encoding is unaffected.
+    if (pass_ > 0) {
+      codec_ctx->flags &= ~(AV_CODEC_FLAG_PASS1 | AV_CODEC_FLAG_PASS2);
+      if (pass_ == 1) {
+        codec_ctx->flags |= AV_CODEC_FLAG_PASS1;
+      } else {
+        codec_ctx->flags |= AV_CODEC_FLAG_PASS2;
+      }
+
+      const QString stats_filename = stats_filename_.isEmpty()
+          ? params().filename() + QStringLiteral(".2pass.log")
+          : stats_filename_;
+      av_opt_set(codec_ctx, "passlogfile", stats_filename.toUtf8(), 0);
     }
 
   } else if (type == AVMEDIA_TYPE_AUDIO) {

@@ -21,6 +21,7 @@
 #ifndef H264SECTION_H
 #define H264SECTION_H
 
+#include <QCheckBox>
 #include <QSlider>
 #include <QStackedWidget>
 #include <QComboBox>
@@ -68,10 +69,15 @@ public:
   int64_t GetMaximumBitRate() const;
   void SetMaximumBitRate(int64_t b);
 
+  bool GetTwoPass() const;
+  void SetTwoPass(bool e);
+
 private:
   FloatSlider* target_rate_;
 
   FloatSlider* max_rate_;
+
+  QCheckBox* two_pass_checkbox_;
 
 };
 
@@ -87,8 +93,13 @@ public:
   int64_t GetFileSize() const;
   void SetFileSize(int64_t f);
 
+  bool GetTwoPass() const;
+  void SetTwoPass(bool e);
+
 private:
   FloatSlider* file_size_;
+
+  QCheckBox* two_pass_checkbox_;
 
 };
 

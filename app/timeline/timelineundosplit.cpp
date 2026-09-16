@@ -111,15 +111,15 @@ Block *BlockSplitPreservingLinksCommand::GetSplit(Block *original, int time_inde
 
 void BlockSplitPreservingLinksCommand::prepare()
 {
+  // Splitting must be done in ascending time order: a split at a later time is applied to blocks
+  // returned by earlier splits, so order determines correctness. Times are sorted here and
+  // GetSplit() indexes into times_/splits_ in this sorted order.
+  std::sort(times_.begin(), times_.end());
+
   splits_.resize(times_.size());
 
   for (int i=0;i<times_.size();i++) {
     const rational& time = times_.at(i);
-
-    // FIXME: I realize this isn't going to work if the times aren't ordered. I'm lazy so rather
-    //        than writing in a sorting algorithm here, I'll just put an assert as a reminder
-    //        if this ever becomes an issue.
-    Q_ASSERT(i == 0 || time > times_.at(i-1));
 
     QVector<Block*> splits(blocks_.size());
 

@@ -148,6 +148,8 @@ ViewerWidget::ViewerWidget(ViewerDisplayWidget *display, QWidget *parent) :
 
   connect(Core::instance(), &Core::ColorPickerEnabled, this, &ViewerWidget::SetSignalCursorColorEnabled);
   connect(this, &ViewerWidget::CursorColor, Core::instance(), &Core::ColorPickerColorEmitted);
+
+  connect(this, &ViewerWidget::MulticamNodeChanged, RenderManager::instance()->GetCacher(), &PreviewAutoCacher::SetMulticamNode);
   connect(AudioManager::instance(), &AudioManager::OutputParamsChanged, this, &ViewerWidget::UpdateAudioProcessor);
 }
 
@@ -696,10 +698,9 @@ void ViewerWidget::DetectMulticamNode(const rational &time)
     if (multicam_panel_) {
       multicam_panel_->SetMulticamNode(GetConnectedNode(), multicam, clip, time);
     }
-    // FIXME: Really dirty
-    RenderManager::instance()->GetCacher()->SetMulticamNode(multicam);
+    emit MulticamNodeChanged(multicam);
   } else {
-    RenderManager::instance()->GetCacher()->SetMulticamNode(nullptr);
+    emit MulticamNodeChanged(nullptr);
     if (multicam_panel_) {
       multicam_panel_->SetMulticamNode(nullptr, nullptr, nullptr, time);
     }

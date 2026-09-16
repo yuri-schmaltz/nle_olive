@@ -188,6 +188,11 @@ signals:
    */
   void ColorManagerChanged(ColorManager* color_manager);
 
+  /**
+   * @brief Signal emitted whenever the active multicam node changes or is cleared
+   */
+  void MulticamNodeChanged(MultiCamNode* multicam);
+
 protected:
   ViewerWidget(ViewerDisplayWidget *display, QWidget* parent = nullptr);
 

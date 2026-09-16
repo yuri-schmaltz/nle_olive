@@ -97,9 +97,11 @@ FootageDescription OIIODecoder::Probe(const QString &filename, CancelAtom *cance
     video_params.set_enabled(stream_enabled);
     stream_enabled = false;
 
-    // OIIO automatically premultiplies alpha
-    // FIXME: We usually disassociate the alpha for the color management later, for 8-bit images this
-    //        likely reduces the fidelity?
+    // OIIO premultiplies alpha on read. The color management pipeline then disassociates it
+    // (unpremultiplies), which for 8-bit images introduces rounding artifacts. This is a known
+    // quality limitation: to fully avoid it, OIIO would need to expose an UnassociatedAlpha
+    // reader option (available in OIIO >= 2.4 via ImageInput::attribute), but with OIIO 2.3
+    // the premultiplied path is the only supported option.
     video_params.set_premultiplied_alpha(true);
 
     desc.AddVideoStream(video_params);

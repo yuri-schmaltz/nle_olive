@@ -22,8 +22,10 @@
 #include <cmath>
 #include "render/colorprocessor.h"
 
+#include "node/color/colorwheels/colorwheels.h"
 #include "node/distort/crop/cropdistortnode.h"
 #include "node/distort/transform/transformdistortnode.h"
+#include "node/factory.h"
 #include "node/generator/solid/solid.h"
 #include "node/generator/testsignal/testsignal.h"
 #include "node/math/merge/merge.h"
@@ -131,5 +133,46 @@ OLIVE_ADD_TEST(BarsGeneratorProvidesShader)
   OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(ColorWheelsNodeShaderAndProperties)
+{
+  NodeFactory::Initialize();
+  Node *created = NodeFactory::CreateFromID(QStringLiteral("org.olivevideoeditor.Olive.colorwheels"));
+  OLIVE_ASSERT(created != nullptr);
+  OLIVE_ASSERT_EQUAL(created->Name(), QStringLiteral("Color Wheels (Lift/Gamma/Gain)"));
+  OLIVE_ASSERT(created->GetFlags() & Node::kVideoEffect);
+  delete created;
+
+  ColorWheelsNode wheels;
+  OLIVE_ASSERT(wheels.HasInputWithID(ColorWheelsNode::kTextureInput));
+  OLIVE_ASSERT(wheels.HasInputWithID(ColorWheelsNode::kLiftInput));
+  OLIVE_ASSERT(wheels.HasInputWithID(ColorWheelsNode::kGammaInput));
+  OLIVE_ASSERT(wheels.HasInputWithID(ColorWheelsNode::kGainInput));
+  OLIVE_ASSERT(wheels.HasInputWithID(ColorWheelsNode::kOffsetInput));
+
+  Node::ShaderRequest request(QStringLiteral("colorwheels"));
+  ShaderCode code = wheels.GetShaderCode(request);
+  OLIVE_ASSERT(!code.frag_code().isEmpty());
+  OLIVE_ASSERT(code.frag_code().contains("lift_in"));
+  OLIVE_ASSERT(code.frag_code().contains("gain_in"));
+  OLIVE_ASSERT(code.frag_code().contains("gamma_in"));
+  OLIVE_ASSERT(code.frag_code().contains("offset_in"));
+
+  // Check processing pass-through when texture is provided
+  const VideoParams vparams(16, 16, PixelFormat::F32, 4);
+  auto texture = std::make_shared<Texture>(vparams);
+  NodeGlobals globals(vparams, AudioParams(), TimeRange(0, 1), LoopMode::kLoopModeOff);
+  NodeValueTable table;
+  NodeValueRow row;
+  row.insert(ColorWheelsNode::kTextureInput, NodeValue(NodeValue::kTexture, texture));
+  wheels.Value(row, globals, &table);
+
+  TexturePtr out_tex = table.Get(NodeValue::kTexture).toTexture();
+  OLIVE_ASSERT(out_tex != nullptr);
+
+  NodeFactory::Destroy();
+  OLIVE_TEST_END;
 }
+
+}
+
 

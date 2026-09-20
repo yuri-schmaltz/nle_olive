@@ -57,4 +57,39 @@ OLIVE_ADD_TEST(ExportInvalidDestinationFails)
   encoder.Close();
   OLIVE_TEST_END;
 }
+
+OLIVE_ADD_TEST(HardwareAcceleratedVideoCodecs)
+{
+  // Test that NVENC and VAAPI codecs return valid names
+  OLIVE_ASSERT(!ExportCodec::GetCodecName(ExportCodec::kCodecH264NVENC).isEmpty());
+  OLIVE_ASSERT(!ExportCodec::GetCodecName(ExportCodec::kCodecHEVCNVENC).isEmpty());
+  OLIVE_ASSERT(!ExportCodec::GetCodecName(ExportCodec::kCodecH264VAAPI).isEmpty());
+  OLIVE_ASSERT(!ExportCodec::GetCodecName(ExportCodec::kCodecHEVCVAAPI).isEmpty());
+
+  // Test that they are treated as video codecs, not still image nor lossless
+  OLIVE_ASSERT(!ExportCodec::IsCodecAStillImage(ExportCodec::kCodecH264NVENC));
+  OLIVE_ASSERT(!ExportCodec::IsCodecAStillImage(ExportCodec::kCodecHEVCNVENC));
+  OLIVE_ASSERT(!ExportCodec::IsCodecLossless(ExportCodec::kCodecH264NVENC));
+  OLIVE_ASSERT(!ExportCodec::IsCodecLossless(ExportCodec::kCodecHEVCNVENC));
+
+  // Test container format associations
+  QList<ExportCodec::Codec> mp4_codecs = ExportFormat::GetVideoCodecs(ExportFormat::kFormatMPEG4Video);
+  OLIVE_ASSERT(mp4_codecs.contains(ExportCodec::kCodecH264NVENC));
+  OLIVE_ASSERT(mp4_codecs.contains(ExportCodec::kCodecHEVCNVENC));
+  OLIVE_ASSERT(mp4_codecs.contains(ExportCodec::kCodecH264VAAPI));
+  OLIVE_ASSERT(mp4_codecs.contains(ExportCodec::kCodecHEVCVAAPI));
+
+  // Test encoder lookup and pixel format enumeration via FFmpegEncoder
+  EncodingParams params;
+  FFmpegEncoder encoder(params);
+  QStringList nvenc_pix_fmts = encoder.GetPixelFormatsForCodec(ExportCodec::kCodecH264NVENC);
+  OLIVE_ASSERT(!nvenc_pix_fmts.isEmpty());
+
+  QStringList vaapi_pix_fmts = encoder.GetPixelFormatsForCodec(ExportCodec::kCodecH264VAAPI);
+  OLIVE_ASSERT(!vaapi_pix_fmts.isEmpty());
+
+  OLIVE_TEST_END;
 }
+
+}
+

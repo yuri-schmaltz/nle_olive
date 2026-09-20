@@ -54,6 +54,10 @@ public:
     kCodecFLAC,
     kCodecSRT,
     kCodecAV1,
+    kCodecH264NVENC,
+    kCodecHEVCNVENC,
+    kCodecH264VAAPI,
+    kCodecHEVCVAAPI,
 
     kCodecCount
   };

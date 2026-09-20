@@ -111,9 +111,11 @@ QList<ExportCodec::Codec> ExportFormat::GetVideoCodecs(ExportFormat::Format f)
   case kFormatDNxHD:
     return {ExportCodec::kCodecDNxHD};
   case kFormatMatroska:
-    return {ExportCodec::kCodecH264, ExportCodec::kCodecH264rgb, ExportCodec::kCodecH265, ExportCodec::kCodecVP9};
+    return {ExportCodec::kCodecH264, ExportCodec::kCodecH264rgb, ExportCodec::kCodecH265, ExportCodec::kCodecVP9,
+            ExportCodec::kCodecH264NVENC, ExportCodec::kCodecHEVCNVENC, ExportCodec::kCodecH264VAAPI, ExportCodec::kCodecHEVCVAAPI};
   case kFormatMPEG4Video:
-    return {ExportCodec::kCodecH264, ExportCodec::kCodecH264rgb, ExportCodec::kCodecH265};
+    return {ExportCodec::kCodecH264, ExportCodec::kCodecH264rgb, ExportCodec::kCodecH265,
+            ExportCodec::kCodecH264NVENC, ExportCodec::kCodecHEVCNVENC, ExportCodec::kCodecH264VAAPI, ExportCodec::kCodecHEVCVAAPI};
   case kFormatOpenEXR:
     return {ExportCodec::kCodecOpenEXR};
   case kFormatPNG:
@@ -121,7 +123,8 @@ QList<ExportCodec::Codec> ExportFormat::GetVideoCodecs(ExportFormat::Format f)
   case kFormatTIFF:
     return {ExportCodec::kCodecTIFF};
   case kFormatQuickTime:
-    return {ExportCodec::kCodecH264, ExportCodec::kCodecH264rgb, ExportCodec::kCodecH265, ExportCodec::kCodecProRes, ExportCodec::kCodecCineform};
+    return {ExportCodec::kCodecH264, ExportCodec::kCodecH264rgb, ExportCodec::kCodecH265, ExportCodec::kCodecProRes, ExportCodec::kCodecCineform,
+            ExportCodec::kCodecH264NVENC, ExportCodec::kCodecHEVCNVENC, ExportCodec::kCodecH264VAAPI, ExportCodec::kCodecHEVCVAAPI};
   case kFormatWebM:
     return {ExportCodec::kCodecAV1, ExportCodec::kCodecVP9};
   case kFormatOgg:

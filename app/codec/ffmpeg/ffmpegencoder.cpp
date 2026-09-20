@@ -935,6 +935,30 @@ const AVCodec *FFmpegEncoder::GetEncoder(ExportCodec::Codec c, SampleFormat afor
       encoder = avcodec_find_encoder(AV_CODEC_ID_AV1);
     return encoder;
   }
+  case ExportCodec::kCodecH264NVENC: {
+    const AVCodec *encoder = avcodec_find_encoder_by_name("h264_nvenc");
+    if (!encoder)
+      encoder = avcodec_find_encoder_by_name("libx264");
+    return encoder;
+  }
+  case ExportCodec::kCodecHEVCNVENC: {
+    const AVCodec *encoder = avcodec_find_encoder_by_name("hevc_nvenc");
+    if (!encoder)
+      encoder = avcodec_find_encoder(AV_CODEC_ID_HEVC);
+    return encoder;
+  }
+  case ExportCodec::kCodecH264VAAPI: {
+    const AVCodec *encoder = avcodec_find_encoder_by_name("h264_vaapi");
+    if (!encoder)
+      encoder = avcodec_find_encoder_by_name("libx264");
+    return encoder;
+  }
+  case ExportCodec::kCodecHEVCVAAPI: {
+    const AVCodec *encoder = avcodec_find_encoder_by_name("hevc_vaapi");
+    if (!encoder)
+      encoder = avcodec_find_encoder(AV_CODEC_ID_HEVC);
+    return encoder;
+  }
   case ExportCodec::kCodecOpenEXR:
     return avcodec_find_encoder(AV_CODEC_ID_EXR);
   case ExportCodec::kCodecPNG:

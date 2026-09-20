@@ -98,6 +98,7 @@ void Config::SetDefaults()
   SetEntryInternal(QStringLiteral("UseGradients"), NodeValue::kBoolean, true);
   SetEntryInternal(QStringLiteral("AutoMergeTracks"), NodeValue::kBoolean, true);
   SetEntryInternal(QStringLiteral("UseSliderLadders"), NodeValue::kBoolean, true);
+  SetEntryInternal(QStringLiteral("ProxyMode"), NodeValue::kBoolean, true);
   SetEntryInternal(QStringLiteral("ShowWelcomeDialog"), NodeValue::kBoolean, true);
   SetEntryInternal(QStringLiteral("ShowClipWhileDragging"), NodeValue::kBoolean, true);
   SetEntryInternal(QStringLiteral("StopPlaybackOnLastFrame"), NodeValue::kBoolean, false);

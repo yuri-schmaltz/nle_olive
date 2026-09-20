@@ -6,6 +6,7 @@
 #include "node/project.h"
 #include "node/project/serializer/serializer.h"
 #include "node/project/sequence/sequence.h"
+#include "config/config.h"
 #include "node/block/clip/clip.h"
 #include "node/generator/solid/solid.h"
 #include "testutil.h"
@@ -147,6 +148,70 @@ OLIVE_ADD_TEST(AutoRecoverySnapshotAndRetention)
   OLIVE_ASSERT(ProjectSerializer::Load(&loaded_recovery, newest_snapshot, ProjectSerializer::kProject).code() == ProjectSerializer::kSuccess);
   OLIVE_ASSERT(loaded_recovery.GetUuid() == project.GetUuid());
   OLIVE_ASSERT(loaded_recovery.GetSavedURL() == newest_snapshot);
+
+  OLIVE_TEST_END;
+}
+
+OLIVE_ADD_TEST(FootageProxyMediaHandling)
+{
+  Environment env;
+  QTemporaryDir dir;
+  OLIVE_ASSERT(dir.isValid());
+
+  const QString original_path = dir.filePath(QStringLiteral("source_video.mp4"));
+  const QString proxy_path = dir.filePath(QStringLiteral("source_video_proxy.mov"));
+
+  // Create dummy media files
+  Write(original_path, "ORIGINAL_MEDIA");
+  Write(proxy_path, "PRORES_PROXY_MEDIA");
+
+  Project project;
+  project.Initialize();
+
+  Footage *footage = new Footage(original_path);
+  footage->setParent(&project);
+
+  OLIVE_ASSERT_EQUAL(footage->filename(), original_path);
+  OLIVE_ASSERT(!footage->has_proxy());
+  OLIVE_ASSERT_EQUAL(footage->active_media_filename(), original_path);
+
+  // Set proxy media
+  footage->set_proxy_filename(proxy_path);
+  OLIVE_ASSERT_EQUAL(footage->proxy_filename(), proxy_path);
+  OLIVE_ASSERT(footage->has_proxy());
+
+  // Proxy mode is enabled by default in Config
+  OLIVE_ASSERT_EQUAL(footage->active_media_filename(), proxy_path);
+
+  // Test toggling ProxyMode off
+  OLIVE_CONFIG("ProxyMode") = false;
+  OLIVE_ASSERT_EQUAL(footage->active_media_filename(), original_path);
+
+  // Re-enable ProxyMode
+  OLIVE_CONFIG("ProxyMode") = true;
+  OLIVE_ASSERT_EQUAL(footage->active_media_filename(), proxy_path);
+
+  // Test round-trip serialization of footage with proxy
+  const QString project_file = dir.filePath(QStringLiteral("proxy_test.ove"));
+  ProjectSerializer::SaveData data(ProjectSerializer::kProject, &project, project_file);
+  OLIVE_ASSERT(ProjectSerializer::Save(data, false).code() == ProjectSerializer::kSuccess);
+
+  Project loaded_project;
+  OLIVE_ASSERT(ProjectSerializer::Load(&loaded_project, project_file, ProjectSerializer::kProject).code() == ProjectSerializer::kSuccess);
+
+  Footage *loaded_footage = nullptr;
+  for (Node *node : loaded_project.nodes()) {
+    if (auto *f = dynamic_cast<Footage*>(node)) {
+      loaded_footage = f;
+      break;
+    }
+  }
+
+  OLIVE_ASSERT(loaded_footage != nullptr);
+  OLIVE_ASSERT_EQUAL(loaded_footage->filename(), original_path);
+  OLIVE_ASSERT_EQUAL(loaded_footage->proxy_filename(), proxy_path);
+  OLIVE_ASSERT(loaded_footage->has_proxy());
+  OLIVE_ASSERT_EQUAL(loaded_footage->active_media_filename(), proxy_path);
 
   OLIVE_TEST_END;
 }

@@ -112,6 +112,11 @@ public:
    */
   void set_filename(const QString& s);
 
+  QString proxy_filename() const;
+  void set_proxy_filename(const QString& s);
+  bool has_proxy() const;
+  QString active_media_filename() const;
+
   /**
    * @brief Retrieve the last modified time/date
    *
@@ -175,6 +180,7 @@ public:
   virtual void SaveCustom(QXmlStreamWriter *writer) const override;
 
   static const QString kFilenameInput;
+  static const QString kProxyFilenameInput;
 
   virtual void AddedToGraphEvent(Project *p)  override;
   virtual void RemovedFromGraphEvent(Project *p) override;

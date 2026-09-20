@@ -26,6 +26,7 @@
 #include "node/project.h"
 #include "node/project/sequence/sequence.h"
 #include "testutil.h"
+#include "timeline/timelinemarker.h"
 #include "timeline/timelineundogeneral.h"
 #include "timeline/timelineundopointer.h"
 #include "timeline/timelineundosplit.h"
@@ -641,6 +642,60 @@ OLIVE_ADD_TEST(SplitAndPlaceBlockUndoInvariants)
     OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
     OLIVE_ASSERT_EQUAL(clip->length(), rational(4));
   }
+
+  OLIVE_TEST_END;
+}
+
+OLIVE_ADD_TEST(TimelineMarkerOperations)
+{
+  TIMELINE_TEST_START;
+
+  TimelineMarkerList marker_list;
+
+  // Initial state empty
+  OLIVE_ASSERT(marker_list.empty());
+  OLIVE_ASSERT_EQUAL(marker_list.size(), 0);
+
+  // Add 3 markers via MarkerAddCommand
+  auto *cmd1 = new MarkerAddCommand(&marker_list, TimeRange(rational(5), rational(6)), QStringLiteral("Intro"), 1);
+  cmd1->redo_now();
+
+  auto *cmd2 = new MarkerAddCommand(&marker_list, TimeRange(rational(10), rational(12)), QStringLiteral("Verse"), 2);
+  cmd2->redo_now();
+
+  auto *cmd3 = new MarkerAddCommand(&marker_list, TimeRange(rational(20), rational(21)), QStringLiteral("Chorus"), 3);
+  cmd3->redo_now();
+
+  OLIVE_ASSERT_EQUAL(marker_list.size(), 3);
+  OLIVE_ASSERT(marker_list.GetMarkerAtTime(rational(5)) != nullptr);
+  OLIVE_ASSERT_EQUAL(marker_list.GetMarkerAtTime(rational(5))->name(), QStringLiteral("Intro"));
+  OLIVE_ASSERT_EQUAL(marker_list.GetMarkerAtTime(rational(10))->name(), QStringLiteral("Verse"));
+  OLIVE_ASSERT_EQUAL(marker_list.GetMarkerAtTime(rational(20))->name(), QStringLiteral("Chorus"));
+
+  // Test Next / Previous navigation helpers
+  OLIVE_ASSERT_EQUAL(marker_list.GetNextMarker(rational(0))->name(), QStringLiteral("Intro"));
+  OLIVE_ASSERT_EQUAL(marker_list.GetNextMarker(rational(5))->name(), QStringLiteral("Verse"));
+  OLIVE_ASSERT_EQUAL(marker_list.GetNextMarker(rational(10))->name(), QStringLiteral("Chorus"));
+  OLIVE_ASSERT(marker_list.GetNextMarker(rational(25)) == nullptr);
+
+  OLIVE_ASSERT(marker_list.GetPreviousMarker(rational(5)) == nullptr);
+  OLIVE_ASSERT_EQUAL(marker_list.GetPreviousMarker(rational(8))->name(), QStringLiteral("Intro"));
+  OLIVE_ASSERT_EQUAL(marker_list.GetPreviousMarker(rational(15))->name(), QStringLiteral("Verse"));
+  OLIVE_ASSERT_EQUAL(marker_list.GetPreviousMarker(rational(30))->name(), QStringLiteral("Chorus"));
+
+  // Test Undo/Redo of adding marker
+  cmd3->undo_now();
+  OLIVE_ASSERT_EQUAL(marker_list.size(), 2);
+  OLIVE_ASSERT(marker_list.GetMarkerAtTime(rational(20)) == nullptr);
+  OLIVE_ASSERT(marker_list.GetNextMarker(rational(10)) == nullptr);
+
+  cmd3->redo_now();
+  OLIVE_ASSERT_EQUAL(marker_list.size(), 3);
+  OLIVE_ASSERT(marker_list.GetMarkerAtTime(rational(20)) != nullptr);
+
+  delete cmd3;
+  delete cmd2;
+  delete cmd1;
 
   OLIVE_TEST_END;
 }

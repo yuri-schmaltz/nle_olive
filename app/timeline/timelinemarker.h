@@ -83,6 +83,14 @@ public:
   {
   }
 
+  virtual ~TimelineMarkerList() override
+  {
+    for (TimelineMarker* marker : markers_) {
+      delete marker;
+    }
+    markers_.clear();
+  }
+
   inline bool empty() const { return markers_.empty(); }
   inline std::vector<TimelineMarker*>::iterator begin() { return markers_.begin(); }
   inline std::vector<TimelineMarker*>::iterator end() { return markers_.end(); }
@@ -130,6 +138,29 @@ public:
     }
 
     return closest;
+  }
+
+  TimelineMarker *GetNextMarker(const rational &t) const
+  {
+    for (auto it = markers_.cbegin(); it != markers_.cend(); ++it) {
+      if ((*it)->time().in() > t) {
+        return *it;
+      }
+    }
+    return nullptr;
+  }
+
+  TimelineMarker *GetPreviousMarker(const rational &t) const
+  {
+    TimelineMarker *prev = nullptr;
+    for (auto it = markers_.cbegin(); it != markers_.cend(); ++it) {
+      if ((*it)->time().in() < t) {
+        prev = *it;
+      } else {
+        break;
+      }
+    }
+    return prev;
   }
 
 signals:

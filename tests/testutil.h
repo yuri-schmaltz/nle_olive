@@ -19,6 +19,11 @@
 ***/
 
 #include <iostream>
+#include <QString>
+
+inline std::ostream& operator<<(std::ostream& os, const QString& str) {
+  return os << str.toStdString();
+}
 
 #define OLIVE_TEST_SUCCESS -1
 

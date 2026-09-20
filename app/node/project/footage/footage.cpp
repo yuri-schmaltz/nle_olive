@@ -36,6 +36,7 @@
 namespace olive {
 
 const QString Footage::kFilenameInput = QStringLiteral("file_in");
+const QString Footage::kProxyFilenameInput = QStringLiteral("proxy_file_in");
 
 #define super ViewerOutput
 
@@ -48,6 +49,7 @@ Footage::Footage(const QString &filename) :
 {
   SetFlag(kIsItem);
 
+  PrependInput(kProxyFilenameInput, NodeValue::kFile, InputFlags(kInputFlagNotConnectable | kInputFlagNotKeyframable));
   PrependInput(kFilenameInput, NodeValue::kFile, InputFlags(kInputFlagNotConnectable | kInputFlagNotKeyframable));
 
   Clear();
@@ -149,6 +151,31 @@ void Footage::set_filename(const QString &s)
   SetStandardValue(kFilenameInput, s);
 }
 
+QString Footage::proxy_filename() const
+{
+  return GetStandardValue(kProxyFilenameInput).toString();
+}
+
+void Footage::set_proxy_filename(const QString &s)
+{
+  SetStandardValue(kProxyFilenameInput, s);
+}
+
+bool Footage::has_proxy() const
+{
+  QString p = proxy_filename();
+  return !p.isEmpty() && QFileInfo::exists(p);
+}
+
+QString Footage::active_media_filename() const
+{
+  bool proxy_enabled = OLIVE_CONFIG("ProxyMode").toBool();
+  if (proxy_enabled && has_proxy()) {
+    return proxy_filename();
+  }
+  return filename();
+}
+
 const qint64 &Footage::timestamp() const
 {
   return timestamp_;
@@ -240,8 +267,11 @@ void Footage::Value(const NodeValueRow &value, const NodeGlobals &globals, NodeV
 {
   Q_UNUSED(globals)
 
-  // Pop filename from table
-  QString file = value[kFilenameInput].toString();
+  // Determine media filename (proxy if enabled and present, else original)
+  QString file = active_media_filename();
+  if (file.isEmpty() || !QFileInfo::exists(file)) {
+    file = value[kFilenameInput].toString();
+  }
 
   // If the file exists and the reference is valid, push a footage job to the renderer
   if (QFileInfo::exists(file)) {
@@ -251,7 +281,7 @@ void Footage::Value(const NodeValueRow &value, const NodeGlobals &globals, NodeV
     // Push each stream as a footage job
     for (int i=0; i<GetTotalStreamCount(); i++) {
       Track::Reference ref = GetReferenceFromRealIndex(i);
-      FootageJob job(globals.time(), decoder_, filename(), ref.type(), GetLength(), globals.loop_mode());
+      FootageJob job(globals.time(), decoder_, file, ref.type(), GetLength(), globals.loop_mode());
 
       if (ref.type() == Track::kVideo) {
         VideoParams vp = GetVideoParams(ref.index());
@@ -428,6 +458,11 @@ QVariant Footage::data(const DataType &d) const
           tip.append("\n");
           tip.append(DescribeSubtitleStream(p));
         }
+      }
+
+      if (has_proxy()) {
+        tip.append("\n");
+        tip.append(tr("Proxy: %1").arg(proxy_filename()));
       }
 
       return tip;

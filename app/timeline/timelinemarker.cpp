@@ -31,17 +31,17 @@
 namespace olive {
 
 TimelineMarker::TimelineMarker(QObject *parent) :
+  QObject(parent),
   color_(OLIVE_CONFIG("MarkerColor").toInt())
 {
-  setParent(parent);
 }
 
 TimelineMarker::TimelineMarker(int color, const TimeRange &time, const QString &name, QObject *parent) :
+  QObject(parent),
   time_(time),
   name_(name),
   color_(color)
 {
-  setParent(parent);
 }
 
 void TimelineMarker::set_time(const TimeRange &time)
@@ -238,12 +238,20 @@ void TimelineMarkerList::childEvent(QChildEvent *e)
 
 void TimelineMarkerList::InsertIntoList(TimelineMarker *marker)
 {
+  if (!marker) {
+    return;
+  }
+
+  // Avoid inserting duplicates of the exact same marker object
+  auto existing = std::find(markers_.begin(), markers_.end(), marker);
+  if (existing != markers_.end()) {
+    return;
+  }
+
   // Insertion sort by time to allow some loop optimizations
   bool found = false;
-  for (auto it=markers_.begin(); it!=markers_.end(); it++) {
+  for (auto it = markers_.begin(); it != markers_.end(); ++it) {
     TimelineMarker *m = *it;
-
-    Q_ASSERT(m->time().in() != marker->time().in());
 
     if (m->time().in() > marker->time().in()) {
       markers_.insert(it, marker);
@@ -287,7 +295,7 @@ void TimelineMarkerList::HandleMarkerTimeChange()
 }
 
 MarkerAddCommand::MarkerAddCommand(TimelineMarkerList *marker_list, const TimeRange &range, const QString &name, int color) :
-  MarkerAddCommand(marker_list, new TimelineMarker(color, range, name, &memory_manager_))
+  MarkerAddCommand(marker_list, new TimelineMarker(color, range, name, nullptr))
 {
 }
 

@@ -642,7 +642,10 @@ void Track::ProcessAudioTrack(const NodeValueRow &value, const NodeGlobals &glob
     TimeRange range_for_block(qMax(b->in(), range.in()),
                               qMin(b->out(), range.out()));
 
-    qint64 source_offset = 0;
+    if (range_for_block.out() <= range_for_block.in()) {
+      continue;
+    }
+
     qint64 destination_offset = globals.aparams().time_to_samples(range_for_block.in() - range.in());
     qint64 max_dest_sz = globals.aparams().time_to_samples(range_for_block.length());
 
@@ -660,41 +663,40 @@ void Track::ProcessAudioTrack(const NodeValueRow &value, const NodeGlobals &glob
           samples_from_this_block.silence();
         } else if (!qFuzzyCompare(speed_value, 1.0)) {
           if (clip_cast->maintain_audio_pitch()) {
+            // Render requests may arrive out of order or on different workers.
+            // Keep filter state local to this clip and drain it before copying.
+            // Continuous preview across requests still requires render context
+            // (preroll/overlap), rather than sharing state between unrelated clips.
             AudioProcessor processor;
-
-            if (processor.Open(samples_from_this_block.audio_params(), samples_from_this_block.audio_params(), speed_value)) {
-              AudioProcessor::Buffer out;
-
-              // FIXME: This is not the best way to do this, the TempoProcessor works best
-              //        when it's given a continuous stream of audio, which is challenging
-              //        in our current "modular" audio system. This should still work reasonably
-              //        well on export (assuming audio is all generated at once on export), but
-              //        users may hear clicks and pops in the audio during preview due to this
-              //        approach.
-              int r = processor.Convert(samples_from_this_block.to_raw_ptrs().data(), samples_from_this_block.sample_count(), nullptr);
-
+            const AudioParams params = samples_from_this_block.audio_params();
+            AudioProcessor::Buffer out;
+            bool converted = false;
+            if (processor.Open(params, params, speed_value)) {
+              int r = processor.Convert(samples_from_this_block.to_raw_ptrs().data(),
+                                        samples_from_this_block.sample_count(), nullptr);
+              if (r >= 0) {
+                processor.Flush();
+                r = processor.Convert(nullptr, 0, &out);
+                converted = r >= 0;
+              }
               if (r < 0) {
                 qCritical() << "Failed to change tempo of audio:" << r;
-              } else {
-                processor.Flush();
-
-                processor.Convert(nullptr, 0, &out);
-
-                if (!out.empty()) {
-                  int nb_samples = out.front().size() * samples_from_this_block.audio_params().bytes_per_sample_per_channel();
-
-                  if (nb_samples) {
-                    SampleBuffer new_samples(samples_from_this_block.audio_params(), nb_samples);
-
-                    for (int i=0; i<out.size(); i++) {
-                      memcpy(new_samples.data(i), out[i].data(), out[i].size());
-                    }
-
-                    samples_from_this_block = new_samples;
-                  }
-                }
               }
+            } else {
+              qCritical() << "Failed to open tempo processor";
             }
+
+            // An empty or failed conversion must not fall back to unmodified
+            // audio. The destination is already silent for missing samples.
+            if (!converted || out.empty() || out.front().isEmpty()) {
+              continue;
+            }
+            const size_t nb_samples = out.front().size() / params.bytes_per_sample_per_channel();
+            SampleBuffer new_samples(params, nb_samples);
+            for (int i = 0; i < out.size(); i++) {
+              memcpy(new_samples.data(i), out[i].constData(), out[i].size());
+            }
+            samples_from_this_block = new_samples;
           } else {
             // Multiply time
             samples_from_this_block.speed(speed_value);
@@ -706,11 +708,16 @@ void Track::ProcessAudioTrack(const NodeValueRow &value, const NodeGlobals &glob
         }
       }
 
-      qint64 copy_length = qMin(max_dest_sz, qint64(samples_from_this_block.sample_count() - source_offset));
+      const qint64 available = qint64(block_range_buffer.sample_count()) - destination_offset;
+      const qint64 copy_length = qMin(qMin(max_dest_sz, available),
+                                     qint64(samples_from_this_block.sample_count()));
+      if (copy_length <= 0) {
+        continue;
+      }
 
       // Copy samples into destination buffer
       for (int i=0; i<samples_from_this_block.audio_params().channel_count(); i++) {
-        block_range_buffer.set(i, samples_from_this_block.data(i) + source_offset, destination_offset, copy_length);
+        block_range_buffer.set(i, samples_from_this_block.data(i), destination_offset, copy_length);
       }
     }
   }

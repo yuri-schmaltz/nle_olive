@@ -100,9 +100,14 @@ bool ExportTask::Run()
     }
 
     // Create color processor
-    color_processor_ = ColorProcessor::Create(color_manager_,
-                                              color_manager_->GetReferenceColorSpace(),
-                                              params_.color_transform());
+    try {
+      color_processor_ = ColorProcessor::Create(color_manager_,
+                                                color_manager_->GetReferenceColorSpace(),
+                                                params_.color_transform());
+    } catch (const OCIO::Exception &e) {
+      SetError(tr("Invalid export color transform: %1").arg(e.what()));
+      return false;
+    }
   }
 
   // Start render process
@@ -180,8 +185,10 @@ bool ExportTask::Run()
 
   // If cancelled, delete the file we made, which is always a file we created since we write to a
   // temp file during the actual encoding process
-  if (IsCancelled()) {
-    QFile::remove(params_.filename());
+  if (IsCancelled() || !success) {
+    // A failed render must never replace the previous successful export.
+    if (!params_.video_is_image_sequence()) QFile::remove(params_.filename());
+    success = false;
   } else if (params_.filename() != real_filename) {
     // If we were writing to a temp file, overwrite now
     if (!FileFunctions::RenameFileAllowOverwrite(params_.filename(), real_filename)) {

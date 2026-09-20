@@ -263,7 +263,10 @@ int main(int argc, char *argv[])
   QSurfaceFormat::setDefaultFormat(format);
 
   // Enable application automatically using higher resolution images from icons
+  // (Qt5 only: always enabled, and the attribute removed, in Qt6)
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
 
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 

@@ -1,0 +1,129 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-linux-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_QT6": "ON",
+        "BUILD_TESTS": "ON",
+        "USE_WERROR": "OFF",
+        "OLIVECORE_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-linux-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_QT6": "ON",
+        "BUILD_TESTS": "ON",
+        "USE_WERROR": "OFF",
+        "OLIVECORE_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "linux-asan",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-linux-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_QT6": "ON",
+        "BUILD_TESTS": "ON",
+        "USE_WERROR": "OFF",
+        "OLIVECORE_BUILD_TESTS": "OFF",
+        "ENABLE_SANITIZER_ADDRESS": "ON",
+        "ENABLE_SANITIZER_UNDEFINED_BEHAVIOR": "ON"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-linux-tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_QT6": "ON",
+        "BUILD_TESTS": "ON",
+        "USE_WERROR": "OFF",
+        "OLIVECORE_BUILD_TESTS": "OFF",
+        "ENABLE_SANITIZER_THREAD": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "jobs": 8
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "jobs": 8
+    },
+    {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "jobs": 8
+    },
+    {
+      "name": "linux-tsan",
+      "configurePreset": "linux-tsan",
+      "jobs": 8
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 120
+      }
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 120
+      }
+    },
+    {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 120
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "configurePreset": "linux-tsan",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 120
+      }
+    }
+  ]
+}

@@ -26,6 +26,7 @@ extern "C" {
 }
 
 #include <QDebug>
+#include <cmath>
 
 #include "common/ffmpegutils.h"
 
@@ -47,6 +48,11 @@ bool AudioProcessor::Open(const AudioParams &from, const AudioParams &to, double
 {
   if (filter_graph_) {
     qWarning() << "Tried to open a processor that was already open";
+    return false;
+  }
+
+  if (!from.is_valid() || !to.is_valid() || !std::isfinite(tempo) || tempo <= 0.0) {
+    qWarning() << "Invalid audio conversion parameters";
     return false;
   }
 
@@ -220,6 +226,10 @@ int AudioProcessor::Convert(float **in, int nb_in_samples, AudioProcessor::Buffe
 
   int r = 0;
 
+  if (nb_in_samples < 0 || (!in && nb_in_samples > 0)) {
+    return AVERROR(EINVAL);
+  }
+
   if (in && nb_in_samples) {
     // Set frame parameters
     in_frame_->nb_samples = nb_in_samples;
@@ -243,6 +253,7 @@ int AudioProcessor::Convert(float **in, int nb_in_samples, AudioProcessor::Buffe
     }
 
     AudioProcessor::Buffer &result = *output;
+    result.clear();
     result.resize(nb_channels);
 
     int byte_offset = 0;
@@ -251,7 +262,9 @@ int AudioProcessor::Convert(float **in, int nb_in_samples, AudioProcessor::Buffe
       av_frame_unref(out_frame_);
       r = av_buffersink_get_frame(buffersink_ctx_, out_frame_);
       if (r < 0) {
-        if (r == AVERROR(EAGAIN)) {
+        if (r == AVERROR(EAGAIN) || r == AVERROR_EOF) {
+          // EAGAIN means no frames are ready yet; EOF means a flushed stream
+          // has been fully drained. Both are normal, non-error conditions.
           r = 0;
         } else {
           // Handle unexpected error
@@ -279,6 +292,9 @@ int AudioProcessor::Convert(float **in, int nb_in_samples, AudioProcessor::Buffe
 
 void AudioProcessor::Flush()
 {
+  if (!IsOpen()) {
+    return;
+  }
   int r = av_buffersrc_add_frame_flags(buffersrc_ctx_, nullptr, AV_BUFFERSRC_FLAG_KEEP_REF);
   if (r < 0) {
     qCritical() << "Failed to flush:" << r;

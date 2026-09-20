@@ -20,6 +20,7 @@ project(olive-editor VERSION 0.2.0 LANGUAGES CXX)
 
 option(BUILD_QT6 "Build with Qt 6 over 5 (experimental)" OFF)
 option(BUILD_DOXYGEN "Build Doxygen documentation" OFF)
+option(BUILD_GPU_TESTS "Build tests that require a working OpenGL display" OFF)
 option(BUILD_TESTS "Build unit tests" OFF)
 option(USE_WERROR "Error on compile warning" OFF)
 
@@ -257,6 +258,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 list(APPEND OLIVE_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/ext)
 
 add_subdirectory(ext)
+# Instrument the owned core implementation as well as its consumers.
+target_link_libraries(olivecore PRIVATE olive-sanitizers)
 add_subdirectory(app)
 
 if (BUILD_TESTS)

@@ -281,7 +281,7 @@ bool FFmpegEncoder::WriteFrame(FramePtr frame, rational time)
 bool FFmpegEncoder::WriteAudio(const SampleBuffer &audio)
 {
   if (!audio.is_allocated()) {
-    return true;
+    return !audio_resample_ctx_ || WriteAudioData(params().audio_params(), nullptr, 0);
   }
 
   bool result = true;
@@ -335,8 +335,12 @@ bool FFmpegEncoder::WriteAudioData(const AudioParams &audio_params, const uint8_
   int output_sample_count = input_sample_count ? swr_get_out_samples(audio_resample_ctx_, input_sample_count) : 102400;
   uint8_t** output_data = nullptr;
   int output_linesize;
-  av_samples_alloc_array_and_samples(&output_data, &output_linesize, audio_stream_->codecpar->channels,
+  const int allocation = av_samples_alloc_array_and_samples(&output_data, &output_linesize, audio_stream_->codecpar->channels,
                                      output_sample_count, static_cast<AVSampleFormat>(audio_stream_->codecpar->format), 0);
+  if (allocation < 0) {
+    FFmpegError(tr("Failed to allocate converted audio"), allocation);
+    return false;
+  }
 
   // Perform conversion
   int converted = swr_convert(audio_resample_ctx_, output_data, output_sample_count, const_cast<const uint8_t**>(input_data), input_sample_count);
@@ -359,9 +363,12 @@ bool FFmpegEncoder::WriteAudioData(const AudioParams &audio_params, const uint8_
         // Got all the samples we needed, write the frame
         audio_frame_->pts = av_rescale_q(audio_write_count_, {1, audio_codec_ctx_->sample_rate}, audio_codec_ctx_->time_base);
 
-        WriteAVFrame(audio_frame_, audio_codec_ctx_, audio_stream_);
+        audio_frame_->nb_samples = audio_frame_offset_;
+        result = WriteAVFrame(audio_frame_, audio_codec_ctx_, audio_stream_);
+        audio_frame_->nb_samples = audio_max_samples_;
         audio_write_count_ += audio_frame_offset_;
         audio_frame_offset_ = 0;
+        if (!result) break;
       }
     }
   } else if (converted < 0) {
@@ -369,10 +376,13 @@ bool FFmpegEncoder::WriteAudioData(const AudioParams &audio_params, const uint8_
     result = false;
   }
 
-  if (!input_data && audio_frame_offset_ > 0) {
+  if (result && !input_data && audio_frame_offset_ > 0) {
     audio_frame_->nb_samples = audio_frame_offset_;
     audio_frame_->pts = av_rescale_q(audio_write_count_, {1, audio_codec_ctx_->sample_rate}, audio_codec_ctx_->time_base);
-    WriteAVFrame(audio_frame_, audio_codec_ctx_, audio_stream_);
+    result = WriteAVFrame(audio_frame_, audio_codec_ctx_, audio_stream_);
+    audio_write_count_ += audio_frame_offset_;
+    audio_frame_offset_ = 0;
+    audio_frame_->nb_samples = audio_max_samples_;
   }
 
   // Free buffers created
@@ -495,15 +505,16 @@ void FFmpegEncoder::Close()
     FlushEncoders();
 
     // We've written a header, so we'll write a trailer
-    av_write_trailer(fmt_ctx_);
-    avio_closep(&fmt_ctx_->pb);
+    int error = av_write_trailer(fmt_ctx_);
+    if (error < 0) FFmpegError(tr("Failed to finalize output file"), error);
+    error = avio_closep(&fmt_ctx_->pb);
+    if (error < 0) FFmpegError(tr("Failed to close output file"), error);
 
     open_ = false;
   }
 
   if (audio_resample_ctx_) {
-    swr_init(audio_resample_ctx_);
-    audio_resample_ctx_ = nullptr;
+    swr_free(&audio_resample_ctx_);
   }
 
   if (audio_frame_) {

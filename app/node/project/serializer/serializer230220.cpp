@@ -190,9 +190,12 @@ ProjectSerializer230220::LoadData ProjectSerializer230220::Load(Project *project
             } else if (attr.name() == QStringLiteral("ptr")) {
               ptr = attr.value().toULongLong();
             } else if (attr.name() == QStringLiteral("items")) {
-              QVector<QStringRef> l = attr.value().split(',');
+              // QXmlStreamAttribute::value() is QStringRef on Qt5 and QStringView
+              // on Qt6, neither of which provides split(), so normalize to QString
+              // first. Valid and identical on both Qt versions.
+              const QStringList l = attr.value().toString().split(',');
               items.reserve(l.size());
-              for (const QStringRef &s : l) {
+              for (const QString &s : l) {
                 items.append(s.toULongLong());
               }
             }

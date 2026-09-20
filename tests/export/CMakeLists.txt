@@ -1,0 +1,7 @@
+find_program(OLIVE_TEST_FFMPEG ffmpeg)
+if(OLIVE_TEST_FFMPEG)
+  olive_add_test(Export export-tests export-tests.cpp)
+  target_compile_definitions(export-tests PRIVATE OLIVE_TEST_FFMPEG="${OLIVE_TEST_FFMPEG}")
+else()
+  message(STATUS "Export verification requires the ffmpeg executable")
+endif()

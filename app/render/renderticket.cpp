@@ -31,7 +31,7 @@ RenderTicket::RenderTicket() :
 
 void RenderTicket::WaitForFinished(QMutex *mutex)
 {
-  if (is_running_) {
+  while (is_running_) {
     wait_.wait(mutex);
   }
 }

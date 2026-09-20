@@ -98,3 +98,9 @@ compile_flags.txt
 *creator.user*
 
 *_qmlcache.qrc
+
+# Local runtime dependencies (not source files)
+/vendor-libs/
+
+# Gauntlet logs, staged installations and generated media
+/qa-results/

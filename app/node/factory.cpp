@@ -50,6 +50,7 @@
 #include "generator/polygon/polygon.h"
 #include "generator/shape/shapenode.h"
 #include "generator/solid/solid.h"
+#include "generator/testsignal/testsignal.h"
 #include "generator/text/textv1.h"
 #include "generator/text/textv2.h"
 #include "generator/text/textv3.h"
@@ -237,6 +238,10 @@ Node *NodeFactory::CreateFromFactoryIndex(const NodeFactory::InternalID &id)
     return new TimeInput();
   case kBlurFilter:
     return new BlurFilterNode();
+  case kToneGenerator:
+    return new ToneGenerator();
+  case kBarsGenerator:
+    return new BarsGenerator();
   case kSolidGenerator:
     return new SolidGenerator();
   case kMerge:

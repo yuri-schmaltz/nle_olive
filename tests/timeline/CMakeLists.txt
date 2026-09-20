@@ -15,3 +15,4 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 olive_add_test(Timeline timeline-tests timeline-tests.cpp)
+olive_add_test(Timeline TempoStream tempo-tests.cpp)

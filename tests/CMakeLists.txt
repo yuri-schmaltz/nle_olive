@@ -15,11 +15,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 function(olive_add_test GROUP NAME SOURCE)
+  set_property(
+    DIRECTORY
+    APPEND
+    PROPERTY CMAKE_CONFIGURE_DEPENDS ${SOURCE}
+  )
+
   file(READ "${SOURCE}" TEST_FILE_CONTENT)
   string(REGEX MATCHALL "OLIVE_ADD_TEST\(.[A-Za-z0-9_]+\)" TEST_FUNCTIONS ${TEST_FILE_CONTENT})
-  set(TEST_BODY "int main(int argc, char** argv)\n{\n  int ret;(void)ret;")
+  set(TEST_BODY "#include <QCoreApplication>\n#include <QStandardPaths>\nint main(int argc, char** argv)\n{\n  QCoreApplication app(argc, argv);\n  QStandardPaths::setTestModeEnabled(true);\n  int ret;(void)ret;")
+  if(ARGC GREATER 3 AND ARGV3 STREQUAL "GPU")
+    string(REPLACE "#include <QCoreApplication>" "#include <QGuiApplication>\n#include <QSurfaceFormat>" TEST_BODY "${TEST_BODY}")
+    string(REPLACE "QCoreApplication app(argc, argv);" "QSurfaceFormat format; format.setVersion(3, 2); format.setProfile(QSurfaceFormat::CoreProfile); QSurfaceFormat::setDefaultFormat(format); QGuiApplication app(argc, argv);" TEST_BODY "${TEST_BODY}")
+  endif()
   set(TEST_INDEX 1)
   list(LENGTH TEST_FUNCTIONS TEST_COUNT)
+  if (TEST_COUNT EQUAL 0)
+    message(STATUS "Skipping ${NAME}: no test cases registered")
+    return()
+  endif()
   foreach (TEST_FUNC ${TEST_FUNCTIONS})
     string(REPLACE "OLIVE_ADD_TEST(" "" TEST_FUNC "${TEST_FUNC}")
     string(APPEND TEST_BODY "  std::cout << \"[${TEST_INDEX}/${TEST_COUNT}] ${GROUP} - ${TEST_FUNC}\";\n")
@@ -27,12 +41,6 @@ function(olive_add_test GROUP NAME SOURCE)
     MATH(EXPR TEST_INDEX "${TEST_INDEX}+1")
   endforeach()
   string(APPEND TEST_BODY "  return 0;\n}")
-
-  set_property(
-    DIRECTORY
-    APPEND
-    PROPERTY CMAKE_CONFIGURE_DEPENDS ${SOURCE}
-  )
 
   set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${SOURCE}")
 
@@ -66,9 +74,20 @@ function(olive_add_test GROUP NAME SOURCE)
     add_test("Olive.${GROUP}.${NAME}" ${NAME})
   else()
     add_test(${NAME} ${NAME})
-endif()
+  endif()
+  if(MSVC)
+    set(test_name "Olive.${GROUP}.${NAME}")
+  else()
+    set(test_name "${NAME}")
+  endif()
+  set_tests_properties(${test_name} PROPERTIES TIMEOUT 120 LABELS "${GROUP}")
 endfunction()
 
 add_subdirectory(compositing)
 add_subdirectory(general)
 add_subdirectory(timeline)
+
+add_subdirectory(project)
+add_subdirectory(render)
+
+add_subdirectory(export)

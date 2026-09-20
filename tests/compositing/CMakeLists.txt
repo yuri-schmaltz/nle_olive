@@ -15,3 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 olive_add_test(Node compositing-tests compositing-tests.cpp)
+
+if(BUILD_GPU_TESTS)
+  olive_add_test(GPU gpu-tests gpu-tests.cpp GPU)
+endif()

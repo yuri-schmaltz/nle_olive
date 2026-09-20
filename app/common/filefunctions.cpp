@@ -19,6 +19,7 @@
 ***/
 
 #include "filefunctions.h"
+#include <QSaveFile>
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -212,17 +213,32 @@ QString FileFunctions::GetSafeTemporaryFilename(const QString &original)
 
 bool FileFunctions::RenameFileAllowOverwrite(const QString &from, const QString &to)
 {
-  if (QFileInfo::exists(to) && !QFile::remove(to)) {
-    qCritical() << "Couldn't remove existing file" << to << "for overwrite";
+  if (QFileInfo(from).absoluteFilePath() == QFileInfo(to).absoluteFilePath()) {
+    return QFileInfo::exists(from);
+  }
+  // Preserve the destination until the full replacement has been committed.
+  // This also works across filesystems, unlike a plain rename.
+  QFile source(from);
+  QSaveFile destination(to);
+  destination.setDirectWriteFallback(false);
+  if (!source.open(QIODevice::ReadOnly) || !destination.open(QIODevice::WriteOnly)) {
     return false;
   }
-
-  // By this point, we can assume `to` either never existed or has now been deleted
-  if (!QFile::rename(from, to)) {
-    qCritical() << "Failed to rename file" << from << "to" << to;
+  while (!source.atEnd()) {
+    const QByteArray chunk = source.read(1024 * 1024);
+    if (source.error() != QFileDevice::NoError
+        || destination.write(chunk) != chunk.size()) {
+      destination.cancelWriting();
+      return false;
+    }
+  }
+  if (!destination.commit()) {
     return false;
   }
-
+  source.close();
+  if (!QFile::remove(from)) {
+    qWarning() << "Replacement committed, but temporary file could not be removed:" << from;
+  }
   return true;
 }
 

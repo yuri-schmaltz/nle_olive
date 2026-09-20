@@ -1,53 +1,65 @@
-# Olive gauntlet — reprodução da verificação
+# Compilação e verificação local do Olive
 
-Este README documenta como reproduzir o estado verificado na sessão de bug-fixing
-(16 commits em `master`, build Release limpo e ctest 3/3 verde), sem depender do
-ambiente de CI com OpenGL.
+## Build nativo Linux
 
-## Pré-requisitos
+O launcher `./run-olive-desktop.sh` executa `build-host/app/olive-editor` e
+encaminha seus argumentos ao editor. Ele usa as bibliotecas do sistema, sem
+injetar as dependências antigas de `vendor-libs/` em `LD_LIBRARY_PATH`.
 
-- Docker com a imagem oficial `olivevideoeditor/ci-olive:2022.3`
-  (coloque os arquivos que serão compilados em `/src` dentro do container).
-- CPU com 4+ cores; 16GB RAM; ~60GB livres para a imagem do toolchain.
-
-## 1. Configurar
+Pré-requisitos: compilador C++17, CMake, ferramentas de desenvolvimento Qt6
+(incluindo LinguistTools e OpenGLWidgets), FFmpeg, OpenColorIO, OpenImageIO,
+OpenEXR e PortAudio. Os submódulos `ext/core` e `ext/KDDockWidgets` devem estar
+inicializados (`git submodule update --init --recursive`). As versões mínimas e
+as dependências opcionais estão no `CMakeLists.txt` da raiz. Qt6 ainda é uma
+opção experimental do projeto.
 
 ```sh
-root_olive=# caminho onde está a árvore do Olive (ex.: ~/Documentos/olive)
+cmake -S . -B build-host -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_QT6=ON -DBUILD_TESTS=ON -DUSE_WERROR=OFF
+cmake --build build-host -j2
+ctest --test-dir build-host --output-on-failure
+./run-olive-desktop.sh
+```
 
+Para verificar uma compilação limpa, use outro diretório de build com as mesmas
+opções. Um build incremental bem-sucedido não comprova uma compilação limpa nem
+uma compilação com `USE_WERROR=ON`.
+
+## Testes
+
+São registrados três executáveis com casos reais: `common-tests`,
+`timeline-tests` e `TempoStream`. O alvo de composição é omitido enquanto seu
+arquivo não tiver casos `OLIVE_ADD_TEST`; o CMake informa isso na configuração.
+
+`TempoStream` verifica a continuidade do filtro isolado e a saída real da track
+para alteração de velocidade, entrada curta, reprodução reversa e limites entre
+clipes e gaps. Os testes do Windows também estão habilitados no workflow.
+
+Os testes não substituem validação manual de importação, preview, abertura e
+salvamento de projetos e exportação. A janela exige um ambiente Qt/OpenGL
+compatível; sucesso nos testes não comprova funcionamento da interface.
+
+O filtro de tempo é drenado por clipe e por solicitação de renderização. A
+continuidade entre solicitações independentes de preview ainda exige contexto
+adicional no renderizador (preroll/overlap). Não há garantia de eliminar estalos
+nesses limites.
+
+## Build Docker legado
+
+A configuração histórica usa a imagem `olivevideoeditor/ci-olive:2022.3`:
+
+```sh
+root_olive="$PWD"
 docker run --rm -v "$root_olive":/src -w /src olivevideoeditor/ci-olive:2022.3 \
   cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release \
     -DUSE_WERROR=ON -DBUILD_TESTS=ON -GNinja
+docker run --rm -v "$root_olive":/src -w /src olivevideoeditor/ci-olive:2022.3 \
+  cmake --build build-release -j2
+docker run --rm -v "$root_olive":/src -w /src olivevideoeditor/ci-olive:2022.3 \
+  ctest --test-dir build-release --output-on-failure
 ```
 
-## 2. Compilar
-
-```sh
-docker run --rm -v "$root_olive":/src -w /src/build-release \
-  olivevideoeditor/ci-olive:2022.3 ninja -j$(nproc)
-```
-
-Um build Release limpo passa com clang 15 e `-Werror -pedantic-errors` (zero
-warnings). O binário fica em `build-release/app/olive-editor`.
-
-## 3. Testar (execução real)
-
-```sh
-docker run --rm -v "$root_olive":/src -w /src/build-release \
-  olivevideoeditor/ci-olive:2022.3 ctest
-```
-
-Esperado: 3/3 testes passam (`compositing`, `common`, `timeline`).
-
-## 4. Rodar o editor (requer GPU/desktop real)
-
-O `olive-editor` é um aplicativo Qt/OpenGL 3.2+ e **não abre janela em host
-headless/software** (a imagem CI é CentOS 7.9 EOL, sem drivers DRI utilizáveis).
-Numa estação com GPU e drivers Mesa, execute:
-
-```sh
-./build-release/app/olive-editor
-```
-
-Em ambientes CI/headless esta limitação é esperada e não indica falha do código;
-use `xvfb-run` + mesa para um smoke de inicialização de software.
+Esse build é separado do nativo e não é usado pelo launcher. A imagem e seus
+resultados precisam ser verificados no ambiente Docker; não se deve inferir
+sucesso a partir do build nativo. `vendor-libs/` contém dependências locais
+antigas, é ignorado pelo Git e não faz parte do procedimento nativo.

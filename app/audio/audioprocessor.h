@@ -24,6 +24,7 @@
 #include <inttypes.h>
 #include <olive/core/core.h>
 #include <QByteArray>
+#include <QVector>
 
 extern "C" {
 #include <libavfilter/avfilter.h>

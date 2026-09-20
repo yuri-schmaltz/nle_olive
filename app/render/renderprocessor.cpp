@@ -319,7 +319,13 @@ NodeValueDatabase RenderProcessor::GenerateDatabase(const Node *node, const Time
 void RenderProcessor::Process(RenderTicketPtr ticket, Renderer *render_ctx, DecoderCache *decoder_cache, ShaderCache *shader_cache)
 {
   RenderProcessor p(ticket, render_ctx, decoder_cache, shader_cache);
-  p.Run();
+  try {
+    p.Run();
+  } catch (const std::exception &e) {
+    ticket->setProperty("error", QString::fromUtf8(e.what()));
+    qCritical() << "Rendering failed:" << e.what();
+    ticket->Finish();
+  }
 }
 
 void RenderProcessor::ProcessVideoFootage(TexturePtr destination, const FootageJob *stream, const rational &input_time)

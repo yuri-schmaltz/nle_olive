@@ -1,0 +1,54 @@
+name: Native Linux gauntlet
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: gauntlet-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install development dependencies
+        run: sudo bash scripts/install-linux-deps.sh
+      - name: Build, test with software OpenGL and stage installation
+        run: xvfb-run -a python3 scripts/gauntlet.py --preset linux-release --gpu --install --jobs 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-release-evidence
+          path: qa-results/
+          retention-days: 14
+  sanitizers:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [linux-asan, linux-tsan]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - run: sudo bash scripts/install-linux-deps.sh
+      - name: Instrumented build and tests
+        run: python3 scripts/gauntlet.py --preset '${{ matrix.preset }}' --jobs 2 --repeat 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.preset }}-evidence
+          path: qa-results/
+          retention-days: 14

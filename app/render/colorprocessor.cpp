@@ -39,10 +39,10 @@ ColorProcessor::ColorProcessor(ColorManager *config, const QString &input, const
     display_transform->setSrc(input.toUtf8());
     display_transform->setDisplay(output.toUtf8());
     display_transform->setView(view.toUtf8());
-    display_transform->setDirection(direction == kNormal ? OCIO::TRANSFORM_DIR_FORWARD : OCIO::TRANSFORM_DIR_INVERSE);
+    const auto ocio_direction = direction == kNormal ? OCIO::TRANSFORM_DIR_FORWARD : OCIO::TRANSFORM_DIR_INVERSE;
 
     if (transform.look().isEmpty()) {
-      processor_ = config->GetConfig()->getProcessor(display_transform);
+      processor_ = config->GetConfig()->getProcessor(display_transform, ocio_direction);
     } else {
       auto group = OCIO::GroupTransform::Create();
 
@@ -60,19 +60,17 @@ ColorProcessor::ColorProcessor(ColorManager *config, const QString &input, const
       display_transform->setSrc(out_cs);
       group->appendTransform(display_transform);
 
-      processor_ = config->GetConfig()->getProcessor(group);
+      processor_ = config->GetConfig()->getProcessor(group, ocio_direction);
     }
 
   } else {
 
-    try {
-      if (direction == kNormal) {
-        processor_ = config->GetConfig()->getProcessor(input.toUtf8(), output.toUtf8());
-      } else {
-        processor_ = config->GetConfig()->getProcessor(output.toUtf8(), input.toUtf8());
-      }
-    } catch (OCIO::Exception &e) {
-      qWarning() << "ColorProcessor exception:" << e.what();
+    // Let the caller report invalid configurations. Swallowing the exception
+    // here left processor_ null and crashed on getDefaultCPUProcessor below.
+    if (direction == kNormal) {
+      processor_ = config->GetConfig()->getProcessor(input.toUtf8(), output.toUtf8());
+    } else {
+      processor_ = config->GetConfig()->getProcessor(output.toUtf8(), input.toUtf8());
     }
 
   }

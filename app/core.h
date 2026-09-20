@@ -486,7 +486,7 @@ private:
   /**
    * @brief Internal function for saving a project to a file
    */
-  void SaveProjectInternal(const QString &override_filename = QString());
+  bool SaveProjectInternal(const QString &override_filename = QString());
 
   /**
    * @brief Retrieves the currently most active sequence for exporting

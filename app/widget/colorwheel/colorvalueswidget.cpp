@@ -81,7 +81,6 @@ ColorValuesWidget::ColorValuesWidget(ColorManager *manager, QWidget *parent) :
     tabs->addTab(display_tab_, tr("Display"));
     connect(display_tab_, &ColorValuesTab::ColorChanged, this, &ColorValuesWidget::UpdateValuesFromDisplay);
 
-    // FIXME: Display -> Ref temporarily disabled due to OCIO crash (see ColorDialog::ColorSpaceChanged for more info)
     display_tab_->setEnabled(false);
 
     layout->addWidget(tabs);
@@ -98,6 +97,8 @@ void ColorValuesWidget::SetColorProcessor(ColorProcessorPtr input_to_ref, ColorP
   input_to_ref_ = input_to_ref;
   ref_to_display_ = ref_to_display;
   display_to_ref_ = display_to_ref;
+  display_tab_->setEnabled(bool(display_to_ref_));
+  display_tab_->setToolTip(display_to_ref_ ? QString() : tr("This display transform cannot be inverted."));
   ref_to_input_ = ref_to_input;
 
   UpdateValuesFromInput();

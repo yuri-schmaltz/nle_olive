@@ -82,6 +82,9 @@ public:
     kSwirlDistort,
     kMulticamNode,
 
+    kToneGenerator,
+    kBarsGenerator,
+
     // Count value
     kInternalNodeCount
   };

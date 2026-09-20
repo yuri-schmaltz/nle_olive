@@ -19,6 +19,7 @@
 ***/
 
 #include "add.h"
+#include "node/generator/testsignal/testsignal.h"
 #include "core.h"
 #include "node/block/subtitle/subtitle.h"
 #include "node/factory.h"
@@ -159,9 +160,10 @@ Node *AddTool::CreateAddableClip(MultiUndoCommand *command, Sequence *sequence, 
     node_to_add = new TextGeneratorV3();
     break;
   case Tool::kAddableBars:
+    node_to_add = new BarsGenerator();
+    break;
   case Tool::kAddableTone:
-    // Not implemented yet
-    qWarning() << "Unimplemented add object:" << Core::instance()->GetSelectedAddableObject();
+    node_to_add = new ToneGenerator();
     break;
   case Tool::kAddableSubtitle:
     // The block itself is the node we want

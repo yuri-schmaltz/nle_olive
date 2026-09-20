@@ -153,7 +153,11 @@ bool RenderTask::Render(ColorManager* manager,
       // Analyze watcher here
       RenderManager::TicketType ticket_type = watcher->GetTicket()->property("type").value<RenderManager::TicketType>();
 
-      if (ticket_type == RenderManager::kTypeAudio) {
+      if (!watcher->HasResult()) {
+        const QString error = watcher->GetTicket()->property("error").toString();
+        SetError(error.isEmpty() ? tr("Rendering failed or was cancelled.") : error);
+        result = false;
+      } else if (ticket_type == RenderManager::kTypeAudio) {
 
         TimeRange range = watcher->property("range").value<TimeRange>();
 

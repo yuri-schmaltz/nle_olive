@@ -20,6 +20,8 @@
 
 #include "core.h"
 
+#include <QSaveFile>
+
 #include <QApplication>
 #include <QClipboard>
 #include <QDebug>
@@ -797,12 +799,16 @@ void Core::StartGUI(bool full_screen)
   }
 }
 
-void Core::SaveProjectInternal(const QString& override_filename)
+bool Core::SaveProjectInternal(const QString& override_filename)
 {
+  if (!open_project_) {
+    return false;
+  }
+
   // Create save manager
   Task* psm;
 
-  if (open_project_->filename().endsWith(QStringLiteral(".otio"), Qt::CaseInsensitive)) {
+  if (override_filename.isEmpty() && open_project_->filename().endsWith(QStringLiteral(".otio"), Qt::CaseInsensitive)) {
 #ifdef USE_OTIO
     psm = new SaveOTIOTask(open_project_);
 #else
@@ -810,7 +816,7 @@ void Core::SaveProjectInternal(const QString& override_filename)
                           tr("Missing OpenTimelineIO Libraries"),
                           tr("This build was compiled without OpenTimelineIO and therefore "
                              "cannot open OpenTimelineIO files."));
-    return;
+    return false;
 #endif
   } else {
     bool use_compression = !open_project_->filename().endsWith(QStringLiteral(".ovexml"), Qt::CaseInsensitive);
@@ -832,13 +838,21 @@ void Core::SaveProjectInternal(const QString& override_filename)
   // Ideally we could do this in a background thread and show progress in the status bar like
   // Microsoft Word, but that would be far more complex. If it becomes necessary in the future,
   // we will look into an approach like that.
-  if (psm->Start()) {
+  const bool success = psm->Start();
+  if (success) {
     if (override_filename.isEmpty()) {
       ProjectSaveSucceeded(psm);
+    }
+  } else {
+    if (override_filename.isEmpty()) {
+      QMessageBox::critical(main_window_, tr("Save Project Failed"), psm->GetError());
+    } else {
+      qWarning() << "Auto-recovery save failed:" << psm->GetError();
     }
   }
 
   psm->deleteLater();
+  return success;
 }
 
 ViewerOutput *Core::GetSequenceToExport()
@@ -878,13 +892,11 @@ QString Core::GetAutoRecoveryIndexFilename()
 
 void Core::SaveUnrecoveredList()
 {
-  QFile autorecovery_index(GetAutoRecoveryIndexFilename());
+  QSaveFile autorecovery_index(GetAutoRecoveryIndexFilename());
 
   if (autorecovered_projects_.isEmpty()) {
     // Recovery list is empty, delete file if exists
-    if (autorecovery_index.exists()) {
-      autorecovery_index.remove();
-    }
+    QFile::remove(GetAutoRecoveryIndexFilename());
   } else if (autorecovery_index.open(QFile::WriteOnly)) {
     // Overwrite recovery list with current list
     QTextStream ts(&autorecovery_index);
@@ -899,7 +911,10 @@ void Core::SaveUnrecoveredList()
       ts << uuid.toString();
     }
 
-    autorecovery_index.close();
+    ts.flush();
+    if (ts.status() != QTextStream::Ok || !autorecovery_index.commit()) {
+      qWarning() << "Failed to commit unrecovered list";
+    }
   } else {
     qWarning() << "Failed to save unrecovered list";
   }
@@ -958,7 +973,10 @@ void Core::SaveAutorecovery()
       if (FileFunctions::DirectoryIsValid(project_autorecovery_dir)) {
         QString this_autorecovery_path = project_autorecovery_dir.filePath(QStringLiteral("%1.ove").arg(QString::number(QDateTime::currentSecsSinceEpoch())));
 
-        SaveProjectInternal(this_autorecovery_path);
+        if (!SaveProjectInternal(this_autorecovery_path)) {
+          // Keep the dirty state and previous snapshots; retry on the next tick.
+          return;
+        }
 
         open_project_->set_autorecovery_saved(true);
 
@@ -977,7 +995,7 @@ void Core::SaveAutorecovery()
           realname_file.close();
         }
 
-        int64_t max_recoveries_per_file = OLIVE_CONFIG("AutorecoveryMaximum").toLongLong();
+        int64_t max_recoveries_per_file = qMax<qint64>(1, OLIVE_CONFIG("AutorecoveryMaximum").toLongLong());
 
         // Since we write an extra file, increment total allowed files by 1
         max_recoveries_per_file++;
@@ -1020,7 +1038,9 @@ void Core::SaveAutorecovery()
 
 void Core::ProjectSaveSucceeded(Task* task)
 {
-  Project* p = static_cast<ProjectSaveTask*>(task)->GetProject();
+  Q_UNUSED(task)
+  // Saves are synchronous; OTIO tasks are not ProjectSaveTask instances.
+  Project* p = open_project_;
 
   PushRecentlyOpenedProject(p->filename());
 
@@ -1142,9 +1162,7 @@ bool Core::SaveProject()
   if (open_project_->filename().isEmpty()) {
     return SaveProjectAs();
   } else {
-    SaveProjectInternal();
-
-    return true;
+    return SaveProjectInternal();
   }
 }
 
@@ -1263,10 +1281,12 @@ bool Core::SaveProjectAs()
 
     fn = FileFunctions::EnsureFilenameExtension(fn, extension);
 
+    const QString previous_filename = open_project_->filename();
     open_project_->set_filename(fn);
-
-    SaveProjectInternal();
-
+    if (!SaveProjectInternal()) {
+      open_project_->set_filename(previous_filename);
+      return false;
+    }
     return true;
   }
 

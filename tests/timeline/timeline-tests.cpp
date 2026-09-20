@@ -18,6 +18,7 @@
 
 ***/
 
+#include "ai/aiengine.h"
 #include "core.h"
 #include "node/block/clip/clip.h"
 #include "node/block/transition/crossdissolve/crossdissolvetransition.h"
@@ -700,5 +701,73 @@ OLIVE_ADD_TEST(TimelineMarkerOperations)
   OLIVE_TEST_END;
 }
 
+class MockWhisperEngine : public AISpeechToTextEngine
+{
+public:
+  virtual bool LoadModel(const QString &model_path, Backend backend = kBackendCPU) override
+  {
+    model_path_ = model_path;
+    backend_ = backend;
+    loaded_ = true;
+    return true;
+  }
+
+  virtual void UnloadModel() override
+  {
+    loaded_ = false;
+  }
+
+  virtual QVector<AISubtitleSegment> Transcribe(const float *audio_pcm,
+                                                size_t sample_count,
+                                                int sample_rate,
+                                                CancelableObject *cancelable = nullptr) override
+  {
+    Q_UNUSED(audio_pcm)
+    Q_UNUSED(sample_count)
+    Q_UNUSED(sample_rate)
+    Q_UNUSED(cancelable)
+
+    return {
+      {rational(0), rational(3), QStringLiteral("Welcome to Olive Video Editor"), 0.98f},
+      {rational(3), rational(7), QStringLiteral("Powered by native AI speech recognition"), 0.95f}
+    };
+  }
+};
+
+OLIVE_ADD_TEST(TestAISpeechToTextWorkflow)
+{
+  auto engine = std::make_shared<MockWhisperEngine>();
+  OLIVE_ASSERT(!engine->IsLoaded());
+
+  OLIVE_ASSERT(engine->LoadModel(QStringLiteral("/dummy/path/whisper-base.bin"), AIEngine::kBackendCPU));
+  OLIVE_ASSERT(engine->IsLoaded());
+  OLIVE_ASSERT_EQUAL(engine->GetBackend(), AIEngine::kBackendCPU);
+  OLIVE_ASSERT_EQUAL(engine->GetType(), AIEngine::kModelSpeechToText);
+
+  // Generate 1 second of dummy audio samples (48kHz)
+  QVector<float> audio_pcm(48000, 0.0f);
+  AutoSubtitleTask task(engine, audio_pcm, 48000);
+
+  bool success = task.Start();
+  OLIVE_ASSERT(success);
+
+  const auto &results = task.GetResults();
+  OLIVE_ASSERT_EQUAL(results.size(), 2);
+  OLIVE_ASSERT_EQUAL(results[0].start_time, rational(0));
+  OLIVE_ASSERT_EQUAL(results[0].end_time, rational(3));
+  OLIVE_ASSERT_EQUAL(results[0].text, QStringLiteral("Welcome to Olive Video Editor"));
+  OLIVE_ASSERT(results[0].confidence > 0.9f);
+
+  OLIVE_ASSERT_EQUAL(results[1].start_time, rational(3));
+  OLIVE_ASSERT_EQUAL(results[1].end_time, rational(7));
+  OLIVE_ASSERT_EQUAL(results[1].text, QStringLiteral("Powered by native AI speech recognition"));
+
+  engine->UnloadModel();
+  OLIVE_ASSERT(!engine->IsLoaded());
+
+  OLIVE_TEST_END;
 }
+
+}
+
 

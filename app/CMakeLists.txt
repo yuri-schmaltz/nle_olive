@@ -23,6 +23,7 @@ set(OLIVE_SOURCES
 #set(OLIVE_RESOURCES)
 
 # Add subdirectories, which will populate the above variables
+add_subdirectory(ai)
 add_subdirectory(audio)
 add_subdirectory(cli)
 add_subdirectory(codec)

@@ -43,6 +43,7 @@
 #include "effect/opacity/opacityeffect.h"
 #include "filter/blur/blur.h"
 #include "filter/dropshadow/dropshadowfilter.h"
+#include "group/group.h"
 #include "filter/mosaic/mosaicfilternode.h"
 #include "filter/stroke/stroke.h"
 #include "generator/matrix/matrix.h"

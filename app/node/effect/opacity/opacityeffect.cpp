@@ -1,6 +1,5 @@
 #include "opacityeffect.h"
 
-#include "node/math/math/math.h"
 #include "widget/slider/floatslider.h"
 
 namespace olive {
@@ -12,12 +11,6 @@ const QString OpacityEffect::kValueInput = QStringLiteral("opacity_in");
 
 OpacityEffect::OpacityEffect()
 {
-  MathNode *math = new MathNode();
-
-  math->SetOperation(MathNode::kOpMultiply);
-
-  SetNodePositionInContext(math, QPointF(0, 0));
-
   AddInput(kTextureInput, NodeValue::kTexture, InputFlags(kInputFlagNotKeyframable));
 
   AddInput(kValueInput, NodeValue::kFloat, 1.0);

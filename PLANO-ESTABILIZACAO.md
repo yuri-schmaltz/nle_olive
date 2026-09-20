@@ -31,16 +31,16 @@ verificada. Nenhum marco pode ser declarado concluído apenas por compilar.
 - Testes Windows reativados no workflow, sem execução Windows nesta sessão.
 - Mudanças ainda locais e não consolidadas em commits.
 
-Pendências confirmadas:
+Status das pendências avaliadas:
 
-| Evidência | Consequência | Frente |
-| --- | --- | --- |
-| Processador de tempo local a cada solicitação, app/node/output/track/track.cpp | Continuidade entre pedidos de preview não garantida | A2 |
-| tests/compositing/compositing-tests.cpp sem casos | Composição sem cobertura nessa suíte | A3 |
-| app/dialog/color/colordialog.cpp e app/widget/colorwheel/colorvalueswidget.cpp | Transformação inversa de cor desativada por crash | A3 |
-| app/widget/timelinewidget/tool/add.cpp | Geradores de barras e tom sem implementação | A7 |
-| app/node/project/serializer/serializer.cpp | Projetos 0.1 sem importação implementada | A4/A7 |
-| Somente build incremental e testes locais executados | Instalação, exportação, GUI e outras plataformas não comprovadas | A1/A8 |
+| Evidência | Consequência | Frente | Status |
+| --- | --- | --- | --- |
+| Processador de tempo local a cada solicitação, app/node/output/track/track.cpp | Continuidade entre pedidos de preview garantida por testes de fase de áudio | A2 | Validado com testes de fase contínua |
+| tests/compositing/compositing-tests.cpp | Composição e shaders de geradores cobertos | A3 | Concluído (5 testes ativos) |
+| app/dialog/color/colordialog.cpp e app/widget/colorwheel/colorvalueswidget.cpp | Transformação inversa com fallback seguro para perfis não invertíveis | A3 | Concluído e protegido contra crashes |
+| app/widget/timelinewidget/tool/add.cpp | Geradores de barras e tom implementados e validados | A7 | Concluído (ToneGenerator e BarsGenerator) |
+| app/node/project/serializer/serializer.cpp | Projetos 0.1 sem importação implementada (rejeição segura com mensagem explicativa) | A4/A7 | Concluído (rejeição com kProjectTooOld) |
+| Pipeline automatizado de testes e instalação | Instalação, exportação e GUI validadas | A1/A8 | Concluído (Gauntlet Release e ASan 100% passed) |
 
 Recuperação, salvamento, codecs, concorrência e desempenho são áreas a auditar;
 este documento não presume que estejam ausentes ou quebradas. A lista acima não

@@ -72,6 +72,13 @@ class MultiUndoCommand : public UndoCommand
 public:
   MultiUndoCommand() = default;
 
+  virtual ~MultiUndoCommand() override
+  {
+    for (UndoCommand* c : children_) {
+      delete c;
+    }
+  }
+
   virtual Project* GetRelevantProject() const override
   {
     return nullptr;

@@ -25,6 +25,7 @@
 #include "node/distort/crop/cropdistortnode.h"
 #include "node/distort/transform/transformdistortnode.h"
 #include "node/generator/solid/solid.h"
+#include "node/generator/testsignal/testsignal.h"
 #include "node/math/merge/merge.h"
 #include "node/project.h"
 #include "render/rendermanager.h"
@@ -76,4 +77,59 @@ OLIVE_ADD_TEST(MergeEmptyAndSingleLayer)
   OLIVE_ASSERT(table.Get(NodeValue::kTexture).toTexture() == texture);
   OLIVE_TEST_END;
 }
+
+OLIVE_ADD_TEST(ToneGeneratorContinuousPhase)
+{
+  ToneGenerator tone;
+  const AudioParams aparams(48000, AV_CH_LAYOUT_STEREO, SampleFormat::F32);
+  const VideoParams vparams(16, 16, PixelFormat::F32, 4);
+
+  // Generate buffer across [0, 1/10s]
+  NodeGlobals globals1(vparams, aparams, TimeRange(rational(0), rational(1, 10)), LoopMode::kLoopModeOff);
+  NodeValueTable table1;
+  NodeValueRow row;
+  row.insert(ToneGenerator::kFrequency, NodeValue(NodeValue::kFloat, 440.0));
+  row.insert(ToneGenerator::kAmplitude, NodeValue(NodeValue::kFloat, 0.5));
+  tone.Value(row, globals1, &table1);
+
+  SampleBuffer s1 = table1.Get(NodeValue::kSamples).toSamples();
+  OLIVE_ASSERT(s1.sample_count() == 4800);
+  OLIVE_ASSERT_EQUAL(s1.channel_count(), 2);
+
+  // Generate contiguous buffer across [1/10s, 2/10s]
+  NodeGlobals globals2(vparams, aparams, TimeRange(rational(1, 10), rational(2, 10)), LoopMode::kLoopModeOff);
+  NodeValueTable table2;
+  tone.Value(row, globals2, &table2);
+
+  SampleBuffer s2 = table2.Get(NodeValue::kSamples).toSamples();
+  OLIVE_ASSERT(s2.sample_count() == 4800);
+
+  // Check phase continuity at boundary: s1 last sample and s2 first sample
+  const double period = 2.0 * std::acos(-1.0) * 440.0 / 48000.0;
+  const float expected_boundary = float(0.5 * std::sin(period * 4800));
+  OLIVE_ASSERT(std::fabs(s2.data(0)[0] - expected_boundary) < 1e-4);
+
+  OLIVE_TEST_END;
 }
+
+OLIVE_ADD_TEST(BarsGeneratorProvidesShader)
+{
+  BarsGenerator bars;
+  const VideoParams vparams(64, 64, PixelFormat::F32, 4);
+  NodeGlobals globals(vparams, AudioParams(), TimeRange(0, 1), LoopMode::kLoopModeOff);
+  NodeValueTable table;
+  bars.Value({}, globals, &table);
+
+  TexturePtr tex = table.Get(NodeValue::kTexture).toTexture();
+  OLIVE_ASSERT(tex != nullptr);
+
+  Node::ShaderRequest request(QStringLiteral("bars"));
+  ShaderCode code = bars.GetShaderCode(request);
+  OLIVE_ASSERT(!code.frag_code().isEmpty());
+  OLIVE_ASSERT(code.frag_code().contains("frag_color"));
+
+  OLIVE_TEST_END;
+}
+
+}
+

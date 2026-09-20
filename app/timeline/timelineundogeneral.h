@@ -208,6 +208,11 @@ public:
   {
   }
 
+  virtual ~TransitionRemoveCommand() override
+  {
+    delete remove_command_;
+  }
+
   virtual Project* GetRelevantProject() const override
   {
     return track_->project();
@@ -241,6 +246,11 @@ public:
     our_gap_(nullptr),
     handle_transitions_(handle_transitions)
   {
+  }
+
+  virtual ~TrackReplaceBlockWithGapCommand() override
+  {
+    qDeleteAll(transition_remove_commands_);
   }
 
   virtual Project* GetRelevantProject() const override

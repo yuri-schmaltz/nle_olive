@@ -28,6 +28,7 @@
 #include "testutil.h"
 #include "timeline/timelineundogeneral.h"
 #include "timeline/timelineundopointer.h"
+#include "timeline/timelineundosplit.h"
 #include "undo/undocommand.h"
 
 namespace olive {
@@ -601,4 +602,48 @@ OLIVE_ADD_TEST(InsertGaps_SingleTrack)
   OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(SplitAndPlaceBlockUndoInvariants)
+{
+  TIMELINE_TEST_START;
+
+  sequence.add_default_nodes();
+
+  TrackList *list = sequence.track_list(Track::kVideo);
+  Track *track = list->GetTracks().first();
+
+  ClipBlock *clip = new ClipBlock();
+  clip->set_length_and_media_out(rational(10));
+  clip->setParent(&project);
+  track->AppendBlock(clip);
+
+  OLIVE_ASSERT_EQUAL(track->Blocks().size(), 1);
+  OLIVE_ASSERT_EQUAL(clip->length(), rational(10));
+
+  // Split clip at t = 4
+  {
+    BlockSplitCommand split(clip, rational(4));
+    split.redo_now();
+
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
+    OLIVE_ASSERT_EQUAL(clip->length(), rational(4));
+    OLIVE_ASSERT(split.new_block() != nullptr);
+    OLIVE_ASSERT_EQUAL(split.new_block()->length(), rational(6));
+
+    // Test Undo restores original clip length and removes split block
+    split.undo_now();
+
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 1);
+    OLIVE_ASSERT_EQUAL(track->Blocks().first(), clip);
+    OLIVE_ASSERT_EQUAL(clip->length(), rational(10));
+
+    // Test Redo recreates split block cleanly
+    split.redo_now();
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
+    OLIVE_ASSERT_EQUAL(clip->length(), rational(4));
+  }
+
+  OLIVE_TEST_END;
 }
+
+}
+

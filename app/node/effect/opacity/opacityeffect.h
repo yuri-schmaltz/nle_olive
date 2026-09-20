@@ -1,7 +1,7 @@
 #ifndef OPACITYEFFECT_H
 #define OPACITYEFFECT_H
 
-#include "node/group/group.h"
+#include "node/node.h"
 
 namespace olive {
 

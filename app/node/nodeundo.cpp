@@ -103,7 +103,7 @@ void NodeSetPositionAndDependenciesRecursivelyCommand::move_recursively(Node *no
 {
   Node::Position pos = context_->GetNodePositionDataInContext(node);
   pos += diff;
-  commands_.append(new NodeSetPositionCommand(node_, context_, pos));
+  commands_.append(new NodeSetPositionCommand(node, context_, pos));
 
   for (auto it=node->input_connections().cbegin(); it!=node->input_connections().cend(); it++) {
     Node *output = it->second;

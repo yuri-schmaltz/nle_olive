@@ -64,6 +64,11 @@ public:
     pos_(pos)
   {}
 
+  virtual ~NodeSetPositionAndDependenciesRecursivelyCommand() override
+  {
+    qDeleteAll(commands_);
+  }
+
   virtual Project* GetRelevantProject() const override
   {
     return node_->project();

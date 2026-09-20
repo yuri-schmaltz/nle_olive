@@ -115,4 +115,41 @@ OLIVE_ADD_TEST(RejectUnsupportedVersions)
   }
   OLIVE_TEST_END;
 }
+
+OLIVE_ADD_TEST(AutoRecoverySnapshotAndRetention)
+{
+  Environment env;
+  QTemporaryDir recovery_root;
+  OLIVE_ASSERT(recovery_root.isValid());
+
+  Project project;
+  project.Initialize();
+  project.SetSavedURL(QStringLiteral("/fake/path/my_project.ove"));
+
+  const QUuid project_uuid = project.GetUuid();
+  QDir project_recovery_dir(recovery_root.filePath(project_uuid.toString()));
+  OLIVE_ASSERT(project_recovery_dir.mkpath("."));
+
+  // Save 3 sequential snapshots
+  for (int timestamp = 1000; timestamp <= 1002; ++timestamp) {
+    const QString snapshot_file = project_recovery_dir.filePath(QStringLiteral("%1.ove").arg(timestamp));
+    ProjectSerializer::SaveData data(ProjectSerializer::kProject, &project, snapshot_file);
+    OLIVE_ASSERT(ProjectSerializer::Save(data, true).code() == ProjectSerializer::kSuccess);
+  }
+
+  // Verify all 3 snapshots were saved as valid compressed OVE files
+  QStringList entries = project_recovery_dir.entryList(QStringList() << "*.ove", QDir::Files, QDir::Name);
+  OLIVE_ASSERT_EQUAL(entries.size(), 3);
+
+  // Verify the newest snapshot loads properly and preserves UUID
+  Project loaded_recovery;
+  const QString newest_snapshot = project_recovery_dir.filePath(entries.last());
+  OLIVE_ASSERT(ProjectSerializer::Load(&loaded_recovery, newest_snapshot, ProjectSerializer::kProject).code() == ProjectSerializer::kSuccess);
+  OLIVE_ASSERT(loaded_recovery.GetUuid() == project.GetUuid());
+  OLIVE_ASSERT(loaded_recovery.GetSavedURL() == newest_snapshot);
+
+  OLIVE_TEST_END;
 }
+
+}
+

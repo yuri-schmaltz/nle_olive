@@ -64,8 +64,6 @@ private:
   Frame buffer_;
   RetrieveVideoParams last_params_;
 
-  static QStringList supported_formats_;
-
 };
 
 }

@@ -4,7 +4,46 @@
 #include "node/generator/solid/solid.h"
 #include "node/generator/testsignal/testsignal.h"
 #include "node/math/merge/merge.h"
+#include "node/color/colorwheels/colorwheels.h"
 namespace olive {
+OLIVE_ADD_TEST(OpenGLColorWheelsPixelsAndAlpha)
+{
+  OpenGLRenderer renderer;
+  OLIVE_ASSERT(renderer.Init());
+  renderer.PostInit();
+  VideoParams params(8, 8, PixelFormat::F32, 4);
+  auto input = renderer.CreateTexture(params);
+  auto output = renderer.CreateTexture(params);
+  ColorWheelsNode wheels;
+  auto shader = renderer.CreateNativeShader(wheels.GetShaderCode(Node::ShaderRequest(QString())));
+  OLIVE_ASSERT(!shader.isNull());
+  for (bool graded : {false, true}) {
+    for (float alpha : {1.0f, 0.5f, 0.0f}) {
+      renderer.ClearDestination(input.get(), 0.25f * alpha, 0.5f * alpha, 0.75f * alpha, alpha);
+      NodeValueRow row;
+      row.insert(ColorWheelsNode::kTextureInput, NodeValue(NodeValue::kTexture, input));
+      row.insert(ColorWheelsNode::kLiftInput, NodeValue(NodeValue::kVec3, QVariant::fromValue(QVector3D(graded ? 0.1f : 0.0f, 0, 0))));
+      row.insert(ColorWheelsNode::kGammaInput, NodeValue(NodeValue::kVec3, QVariant::fromValue(QVector3D(1, graded ? 2.0f : 1.0f, 1))));
+      row.insert(ColorWheelsNode::kGainInput, NodeValue(NodeValue::kVec3, QVariant::fromValue(QVector3D(1, 1, graded ? 0.5f : 1.0f))));
+      row.insert(ColorWheelsNode::kOffsetInput, NodeValue(NodeValue::kVec3, QVariant::fromValue(QVector3D(0, 0, graded ? 0.125f : 0.0f))));
+      renderer.BlitToTexture(shader, ShaderJob(row), output.get());
+      float pixels[8 * 8 * 4];
+      output->Download(pixels, 8);
+      const float expected[] = {graded ? 0.325f : 0.25f,
+                                graded ? std::sqrt(0.5f) : 0.5f,
+                                graded ? 0.5f : 0.75f};
+      for (int i = 0; i < 64; ++i) {
+        for (int c = 0; c < 3; ++c) {
+          OLIVE_ASSERT(std::fabs(pixels[i * 4 + c] - expected[c] * alpha) < 1e-5f);
+        }
+        OLIVE_ASSERT(std::fabs(pixels[i * 4 + 3] - alpha) < 1e-6f);
+      }
+    }
+  }
+  renderer.DestroyNativeShader(shader);
+  OLIVE_TEST_END;
+}
+
 OLIVE_ADD_TEST(OpenGLSolidAndAlphaOver)
 {
   OpenGLRenderer renderer;

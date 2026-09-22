@@ -53,26 +53,16 @@ class TestPackagingAppImage(unittest.TestCase):
         png_icons = list(self.icons_dir.rglob("*.png"))
         self.assertGreater(len(png_icons), 0, "No application icons found in icons directory")
 
-    def test_t1_10_05_installed_binary_version(self):
-        """T1.10.05: Binary version output validation if build artifact is present."""
-        candidates = [
-            ROOT / "build-linux-asan" / "app" / "olive-editor",
-            ROOT / "build-linux-release" / "app" / "olive-editor",
-            ROOT / "build-linux-debug" / "app" / "olive-editor",
-            ROOT / "build" / "app" / "olive-editor",
-        ]
-        found_binary = None
-        for c in candidates:
-            if c.exists() and os.access(c, os.X_OK):
-                found_binary = c
-                break
-        if found_binary:
-            res = subprocess.run([str(found_binary), "--version"], capture_output=True, text=True)
-            self.assertEqual(res.returncode, 0)
-            output = res.stdout + res.stderr
-            self.assertRegex(output, r"^\d+\.\d+\.\d+", f"Unexpected version output format: {output}")
-        else:
-            self.skipTest("Compiled binary not yet built in standard build directories")
+    def test_t1_10_05_configured_binary_version(self):
+        """Check the binary selected by this CTest build, without cross-build fallback."""
+        binary = os.environ.get("OLIVE_TEST_BINARY")
+        if not binary:
+            self.skipTest("No configured binary; run this check through CTest")
+        self.assertTrue(Path(binary).is_file(), f"Configured binary missing: {binary}")
+        self.assertTrue(os.access(binary, os.X_OK), f"Configured binary not executable: {binary}")
+        res = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=15)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertRegex(res.stdout + res.stderr, r"^\d+\.\d+\.\d+")
 
     # Tier 2 Tests (Boundaries)
     def test_t2_10_01_missing_dependency_detection(self):
@@ -153,12 +143,6 @@ class TestPackagingFlatpak(unittest.TestCase):
             self.assertIn(req, module_names, f"Missing required module: {req}")
 
     # Tier 2 Tests (Boundaries)
-    def test_t2_11_01_malformed_json_detection(self):
-        """T2.11.01: Parser correctly detects and rejects malformed JSON."""
-        bad_json = '{ "app-id": "bad", }'
-        with self.assertRaises(json.JSONDecodeError):
-            json.loads(bad_json)
-
     def test_t2_11_02_duplicate_module_names(self):
         """T2.11.02: Manifest has no duplicate module names."""
         data = json.loads(self.manifest_path.read_text(encoding="utf-8"))

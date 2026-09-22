@@ -3,6 +3,8 @@
 
 # Generated distribution packages
 /dist/
+/AppDir/
+/.flatpak-builder/
 
 # Doxygen
 /docs/

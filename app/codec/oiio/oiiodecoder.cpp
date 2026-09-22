@@ -33,8 +33,6 @@
 
 namespace olive {
 
-QStringList OIIODecoder::supported_formats_;
-
 OIIODecoder::OIIODecoder() :
   image_(nullptr)
 {
@@ -170,23 +168,24 @@ bool OIIODecoder::FileTypeIsSupported(const QString& fn)
   // will segfault entirely if given unexpected data (an MPEG-4 for instance). To workaround this issue, we use OIIO's
   // "extension_list" attribute and match it with the extension of the file.
 
-  // Check if we've created the supported formats list, create it if not
-  if (supported_formats_.isEmpty()) {
-    QStringList extension_list = QString::fromStdString(OIIO::get_string_attribute("extension_list")).split(';');
-
-    // The format of "extension_list" is "format:ext", we want to separate it into a simple list of extensions
-    foreach (const QString& ext, extension_list) {
-      QStringList format_and_ext = ext.split(':');
-
-      supported_formats_.append(format_and_ext.at(1).split(','));
+  // Exclude the movie plugin before opening: Olive uses its own FFmpeg decoder
+  // for these files. Opening and then rejecting the OIIO movie reader can leak
+  // FFmpeg resources in supported system OIIO versions.
+  // Function-local static initialization also avoids concurrent mutation when
+  // multiple imports first probe media at the same time.
+  static const QStringList supported_formats = [] {
+    QStringList formats;
+    const auto extension_list = QString::fromStdString(OIIO::get_string_attribute("extension_list")).split(';');
+    for (const QString &entry : extension_list) {
+      const auto format_and_ext = entry.split(':');
+      if (format_and_ext.size() != 2 || format_and_ext.first() == QStringLiteral("ffmpeg")) {
+        continue;
+      }
+      formats.append(format_and_ext.at(1).split(',', Qt::SkipEmptyParts));
     }
-  }
-
-  if (!supported_formats_.contains(QFileInfo(fn).suffix(), Qt::CaseInsensitive)) {
-    return false;
-  }
-
-  return true;
+    return formats;
+  }();
+  return supported_formats.contains(QFileInfo(fn).suffix(), Qt::CaseInsensitive);
 }
 
 bool OIIODecoder::OpenImageHandler(const QString &fn, int subimage)

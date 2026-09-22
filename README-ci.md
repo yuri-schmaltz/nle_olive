@@ -2,7 +2,7 @@
 
 ## Build nativo Linux
 
-O launcher `./run-olive-desktop.sh` executa `build-host/app/olive-editor` e
+O launcher `./run-olive-desktop.sh` executa `build-linux-release/app/olive-editor` e
 encaminha seus argumentos ao editor. Ele usa as bibliotecas do sistema, sem
 injetar as dependências antigas de `vendor-libs/` em `LD_LIBRARY_PATH`.
 
@@ -14,10 +14,9 @@ as dependências opcionais estão no `CMakeLists.txt` da raiz. Qt6 ainda é uma
 opção experimental do projeto.
 
 ```sh
-cmake -S . -B build-host -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_QT6=ON -DBUILD_TESTS=ON -DUSE_WERROR=OFF
-cmake --build build-host -j2
-ctest --test-dir build-host --output-on-failure
+cmake --preset linux-release
+cmake --build --preset linux-release
+ctest --preset linux-release
 ./run-olive-desktop.sh
 ```
 
@@ -27,13 +26,15 @@ uma compilação com `USE_WERROR=ON`.
 
 ## Testes
 
-São registrados três executáveis com casos reais: `common-tests`,
-`timeline-tests` e `TempoStream`. O alvo de composição é omitido enquanto seu
-arquivo não tiver casos `OLIVE_ADD_TEST`; o CMake informa isso na configuração.
+A configuração registra testes de áudio, timeline, projeto, detecção de cortes,
+FCP7 XML, renderização e exportação, além de integrações E2E e verificações
+estáticas de packaging. Use `ctest --preset linux-release -N` para consultar o
+inventário real. Os testes de OTIO dependem da biblioteca opcional; os testes GPU
+exigem `-DBUILD_GPU_TESTS=ON` e um display OpenGL funcional.
 
-`TempoStream` verifica a continuidade do filtro isolado e a saída real da track
-para alteração de velocidade, entrada curta, reprodução reversa e limites entre
-clipes e gaps. Os testes do Windows também estão habilitados no workflow.
+Consulte `TEST_INFRA.md` para o escopo e as lacunas de cobertura. O resultado
+positivo de uma suíte não valida automaticamente mixer, IA, codecs por hardware
+ou pacotes finais.
 
 Os testes não substituem validação manual de importação, preview, abertura e
 salvamento de projetos e exportação. A janela exige um ambiente Qt/OpenGL

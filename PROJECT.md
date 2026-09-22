@@ -1,10 +1,17 @@
 # Project: Olive Video Editor Modernization & Parity Suite
 
+> Estado de integração: o inventário abaixo descreve requisitos e contratos do
+> projeto, não uma lista de recursos concluídos. Mixer/VU e backend de IA ainda
+> estão pendentes. OTIO depende de biblioteca opcional; packaging tem receitas e
+> testes estáticos, sem validação universal dos pacotes. Consulte TEST_INFRA.md
+> para a cobertura executável atual; os antigos 130 casos não comprovam todos
+> esses requisitos.
+
 ## Architecture
 Olive Video Editor is a non-linear video editor written in native C++17 and Qt6, featuring a directed acyclic graph (DAG) node-based rendering architecture.
 - **Node & Audio Pipeline**: Audio streams flow through planar 32-bit floating point buffers (`olive::core::SampleBuffer`) within audio nodes (`Node::Value()`). Tracks aggregate clips and apply volume/pan transforms before summing into sequence outputs.
 - **Task & Concurrency System**: `TaskManager` handles asynchronous operations through a thread pool executing `olive::Task` instances. Worker threads run background tasks (such as frame decoding and scene cut analysis) without contending with the GPU `RenderManager` or audio playback engine.
-- **Interchange Subsystem**: Projects and sequences serialize to/from XML. Native FCP7 XML (`xmeml`) and OpenTimelineIO (`.otio`) provide lossless interchange with third-party NLEs (Premiere, Kdenlive).
+- **Interchange Subsystem**: Projects and sequences serialize to/from XML. Native FCP7 XML (`xmeml`) and OpenTimelineIO (`.otio`) provide timeline interchange within the implemented format subset with third-party NLEs (Premiere, Kdenlive).
 - **Packaging & CI/CD**: Reproducible AppImage generation and Flatpak recipes package Olive and its dependencies (FFmpeg, OCIO, OIIO, Qt6) into isolated, portable Linux bundles.
 
 ## Feature Inventory

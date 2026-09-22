@@ -216,5 +216,112 @@ OLIVE_ADD_TEST(FootageProxyMediaHandling)
   OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(QSaveFileAtomicity)
+{
+  Environment env;
+  QTemporaryDir dir;
+  OLIVE_ASSERT(dir.isValid());
+
+  // Save a valid initial project
+  const QString filename = dir.filePath("atomic_test.ove");
+  Project original;
+  original.Initialize();
+  auto *seq = new Sequence();
+  seq->setParent(&original);
+  seq->SetLabel(QStringLiteral("AtomicSequence"));
+
+  ProjectSerializer::SaveData data(ProjectSerializer::kProject, &original, filename);
+  OLIVE_ASSERT(ProjectSerializer::Save(data, true).code() == ProjectSerializer::kSuccess);
+
+  const QByteArray original_bytes = Read(filename);
+  OLIVE_ASSERT(!original_bytes.isEmpty());
+
+  // Attempt to save to a read-only path (directory itself = save fails)
+  ProjectSerializer::SaveData bad_data(ProjectSerializer::kProject, &original, dir.path());
+  const auto result = ProjectSerializer::Save(bad_data, true);
+  OLIVE_ASSERT(result.code() != ProjectSerializer::kSuccess);
+
+  // Original file MUST be intact
+  OLIVE_ASSERT(Read(filename) == original_bytes);
+
+  // Original must still load correctly
+  Project reloaded;
+  OLIVE_ASSERT(ProjectSerializer::Load(&reloaded, filename, ProjectSerializer::kProject).code() == ProjectSerializer::kSuccess);
+  OLIVE_ASSERT(reloaded.GetUuid() == original.GetUuid());
+
+  OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(UnicodePathRoundTrip)
+{
+  Environment env;
+  QTemporaryDir dir;
+  OLIVE_ASSERT(dir.isValid());
+
+  // Filename and label with multibyte Unicode characters
+  const QString filename = dir.filePath(QString::fromUtf8("проект_тест_日本語.ove"));
+  const QString label = QString::fromUtf8("Seqüência 日本語 Тест αβγ");
+
+  Project project;
+  project.Initialize();
+  auto *seq = new Sequence();
+  seq->setParent(&project);
+  seq->SetLabel(label);
+
+  ProjectSerializer::SaveData data(ProjectSerializer::kProject, &project, filename);
+  OLIVE_ASSERT(ProjectSerializer::Save(data, false).code() == ProjectSerializer::kSuccess);
+
+  Project loaded;
+  OLIVE_ASSERT(ProjectSerializer::Load(&loaded, filename, ProjectSerializer::kProject).code() == ProjectSerializer::kSuccess);
+
+  bool found = false;
+  for (Node *n : loaded.nodes()) {
+    if (auto *s = dynamic_cast<Sequence*>(n)) {
+      found = true;
+      OLIVE_ASSERT(s->GetLabel() == label);
+    }
+  }
+  OLIVE_ASSERT(found);
+
+  OLIVE_TEST_END;
+}
+
+OLIVE_ADD_TEST(MultipleSnapshotRetentionAndLoad)
+{
+  Environment env;
+  QTemporaryDir recovery_root;
+  OLIVE_ASSERT(recovery_root.isValid());
+
+  Project project;
+  project.Initialize();
+  project.SetSavedURL(QStringLiteral("/fake/my_project.ove"));
+
+  const QUuid uuid = project.GetUuid();
+  QDir recovery_dir(recovery_root.filePath(uuid.toString()));
+  OLIVE_ASSERT(recovery_dir.mkpath("."));
+
+  // Save 5 snapshots
+  QStringList saved_paths;
+  for (int i = 1; i <= 5; ++i) {
+    const QString snap = recovery_dir.filePath(QStringLiteral("%1.ove").arg(i, 10, 10, QLatin1Char('0')));
+    ProjectSerializer::SaveData data(ProjectSerializer::kProject, &project, snap);
+    OLIVE_ASSERT(ProjectSerializer::Save(data, true).code() == ProjectSerializer::kSuccess);
+    saved_paths.append(snap);
+  }
+
+  // Verify all 5 exist and are loadable
+  QStringList entries = recovery_dir.entryList(QStringList() << "*.ove", QDir::Files, QDir::Name);
+  OLIVE_ASSERT_EQUAL(entries.size(), 5);
+
+  // Each snapshot must load with correct UUID
+  for (const QString &entry : entries) {
+    Project snap_project;
+    const QString full_path = recovery_dir.filePath(entry);
+    OLIVE_ASSERT(ProjectSerializer::Load(&snap_project, full_path, ProjectSerializer::kProject).code() == ProjectSerializer::kSuccess);
+    OLIVE_ASSERT(snap_project.GetUuid() == uuid);
+  }
+
+  OLIVE_TEST_END;
+}
+
+}

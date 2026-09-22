@@ -358,10 +358,20 @@ public slots:
    */
   void DialogExportShow();
 
-    /**
+  /**
+   * @brief Show Export Final Cut Pro 7 XML dialog
+   */
+  void DialogExportFCPXMLShow();
+
+#ifdef USE_OTIO
+  /**
+   * @brief Show Export OpenTimelineIO dialog
+   */
+  void DialogExportOTIOShow();
+
+  /**
    * @brief Show OTIO import dialog
    */
-#ifdef USE_OTIO
   bool DialogImportOTIOShow(const QList<Sequence*>& sequences);
 #endif
 

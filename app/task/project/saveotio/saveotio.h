@@ -25,8 +25,12 @@
 
 #include <opentimelineio/timeline.h>
 #include <opentimelineio/track.h>
+#include <opentimelineio/clip.h>
+#include <opentimelineio/marker.h>
+#include <opentimelineio/linearTimeWarp.h>
 
 #include "common/otioutils.h"
+#include "node/block/clip/clip.h"
 #include "node/project.h"
 #include "task/task.h"
 
@@ -36,7 +40,7 @@ class SaveOTIOTask : public Task
 {
   Q_OBJECT
 public:
-  SaveOTIOTask(Project* project);
+  SaveOTIOTask(Project* project, const QString& filename = QString());
 
 protected:
   virtual bool Run() override;
@@ -44,11 +48,16 @@ protected:
 private:
   OTIO::Timeline* SerializeTimeline(Sequence* sequence);
 
+  void SerializeMarkers(Sequence* sequence, OTIO::Timeline* otio_timeline, double sequence_rate);
+
   OTIO::Track* SerializeTrack(Track* track, double sequence_rate, rational max_track_length);
+
+  OTIO::Clip* SerializeClip(ClipBlock* block, const std::string& track_kind, double sequence_rate);
 
   bool SerializeTrackList(TrackList* list, OTIO::Timeline *otio_timeline, double sequence_rate);
 
   Project* project_;
+  QString filename_;
 
 };
 

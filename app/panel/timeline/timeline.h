@@ -97,6 +97,9 @@ public:
     timeline_widget()->ShowSpeedDurationDialogForSelectedClips();
   }
 
+  void ShowSceneCutDialogForSelectedClips();
+  void ApplySceneCutsToClip(ClipBlock* clip, const QVector<rational>& media_cuts, bool split_linked_audio);
+
   void NestSelectedClips()
   {
     timeline_widget()->NestSelectedClips();

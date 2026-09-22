@@ -25,7 +25,11 @@
 
 #include "common/otioutils.h"
 #include "node/project.h"
+#include "node/project/sequence/sequence.h"
+#include "node/block/clip/clip.h"
 #include "task/project/load/loadbasetask.h"
+#include <opentimelineio/clip.h>
+#include <opentimelineio/timeline.h>
 
 namespace olive {
 
@@ -37,6 +41,10 @@ public:
 
 protected:
   virtual bool Run() override;
+
+private:
+  void LoadMarkers(OTIO::Timeline* timeline, Sequence* sequence);
+  void LoadClipEffects(OTIO::Clip* otio_clip, ClipBlock* clip_block);
 
 };
 

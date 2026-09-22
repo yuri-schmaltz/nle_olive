@@ -206,6 +206,10 @@ private:
   QAction* file_import_item_;
   Menu* file_export_menu_;
   QAction* file_export_media_item_;
+  QAction* file_export_fcpxml_item_;
+#ifdef USE_OTIO
+  QAction* file_export_otio_item_;
+#endif
   QAction* file_project_properties_item_;
   QAction* file_exit_item_;
 

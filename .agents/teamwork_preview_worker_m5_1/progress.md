@@ -1,0 +1,22 @@
+# Progress - Worker M5 (Linux Packaging Automation)
+Last visited: 2026-09-20T18:43:00Z
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] Read authoritative documentation and spec reports:
+  - [x] /home/yuri/Documentos/olive/.agents/ORIGINAL_REQUEST.md
+  - [x] /home/yuri/Documentos/olive/PROJECT.md
+  - [x] /home/yuri/Documentos/olive/.agents/teamwork_preview_suborch_m5/SCOPE.md
+  - [x] /home/yuri/Documentos/olive/.agents/teamwork_preview_explorer_m5_1/handoff.md
+  - [x] /home/yuri/Documentos/olive/.agents/teamwork_preview_spec_miner_m5_2/handoff.md
+  - [x] /home/yuri/Documentos/olive/.agents/teamwork_preview_spec_miner_m5_3/handoff.md
+- [x] Inspect existing `app/packaging/linux/AppRun` and packaging directories
+- [x] Implement modernized `app/packaging/linux/AppRun` (`chmod +x`, canonical root, full env exports, clean exec/pgrep)
+- [x] Implement `packaging/linux/build_appimage.sh` (`chmod +x`, strict mode, staging, Qt6 plugins, transitive ldd bundling, UsrMerge, appimagetool discovery & fallback)
+- [x] Implement `packaging/flatpak/org.olivevideoeditor.Olive.json` (KDE Platform 6.8+, finish-args, cleanups, 6 modules)
+- [x] Execute verification commands:
+  - [x] `bash -n app/packaging/linux/AppRun`
+  - [x] `bash -n packaging/linux/build_appimage.sh`
+  - [x] `python3 -m json.tool packaging/flatpak/org.olivevideoeditor.Olive.json`
+  - [x] `desktop-file-validate app/packaging/linux/org.olivevideoeditor.Olive.desktop`
+  - [x] `flatpak-builder --show-manifest packaging/flatpak/org.olivevideoeditor.Olive.json`
+  - [x] Real AppImage build & run (`./packaging/linux/build_appimage.sh build-linux-release` -> `dist/Olive-x86_64.AppImage --version`)
+- [x] Write handoff.md and report to parent orchestrator

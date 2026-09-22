@@ -173,6 +173,99 @@ OLIVE_ADD_TEST(ColorWheelsNodeShaderAndProperties)
   OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(OCIONonInvertibleTransformFallback)
+{
+  ColorManager::SetUpDefaultConfig();
+  Project project;
+  auto *manager = project.color_manager();
+
+  // Try to create an inverse processor from the reference colorspace to itself
+  // with a bad display transform - should throw OCIO::Exception, not crash
+  bool caught = false;
+  try {
+    // Trying to invert a display transform from linear->linear (non-invertible path)
+    ColorTransform bad_transform(
+        QStringLiteral("__nonexistent_display__"),
+        QStringLiteral("__nonexistent_view__"),
+        QString());
+    ColorProcessor::Create(manager, manager->GetReferenceColorSpace(),
+                           bad_transform, ColorProcessor::kInverse);
+  } catch (const OCIO::Exception&) {
+    caught = true;
+  } catch (...) {
+    caught = true;  // Any exception is acceptable — we must NOT crash
+  }
+  OLIVE_ASSERT(caught);
+
+  OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(ToneGeneratorSampleRateBoundaries)
+{
+  ToneGenerator tone;
+  const AudioParams aparams(44100, AV_CH_LAYOUT_MONO, SampleFormat::F32);
+  const VideoParams vparams(16, 16, PixelFormat::F32, 4);
 
+  NodeValueRow row;
+  // Nyquist frequency = half sample rate = 22050 Hz
+  row.insert(ToneGenerator::kFrequency, NodeValue(NodeValue::kFloat, 22050.0));
+  row.insert(ToneGenerator::kAmplitude, NodeValue(NodeValue::kFloat, 1.0));
+
+  NodeGlobals globals(vparams, aparams, TimeRange(rational(0), rational(1, 100)), LoopMode::kLoopModeOff);
+  NodeValueTable table;
+  tone.Value(row, globals, &table);
+
+  SampleBuffer buf = table.Get(NodeValue::kSamples).toSamples();
+  // 1/100s at 44100 Hz = 441 samples
+  OLIVE_ASSERT_EQUAL(buf.sample_count(), 441);
+  OLIVE_ASSERT_EQUAL(buf.channel_count(), 1);
+
+  // All samples must be finite (no NaN/Inf at Nyquist)
+  for (int i = 0, n = static_cast<int>(buf.sample_count()); i < n; ++i) {
+    OLIVE_ASSERT(std::isfinite(buf.data(0)[i]));
+  }
+
+  // Test amplitude = 0: all samples must be exactly 0
+  NodeValueRow silent_row;
+  silent_row.insert(ToneGenerator::kFrequency, NodeValue(NodeValue::kFloat, 440.0));
+  silent_row.insert(ToneGenerator::kAmplitude, NodeValue(NodeValue::kFloat, 0.0));
+  NodeValueTable silent_table;
+  tone.Value(silent_row, globals, &silent_table);
+  SampleBuffer silent_buf = silent_table.Get(NodeValue::kSamples).toSamples();
+  for (int i = 0, n = static_cast<int>(silent_buf.sample_count()); i < n; ++i) {
+    OLIVE_ASSERT(std::fabs(silent_buf.data(0)[i]) < 1e-9f);
+  }
+
+  OLIVE_TEST_END;
+}
+
+OLIVE_ADD_TEST(MergeNodeAlphaPreservation)
+{
+  MergeNode merge;
+  const VideoParams params(32, 32, PixelFormat::F32, 4);
+
+  // Verify the shader code implements alpha-over blending
+  Node::ShaderRequest req(QStringLiteral("alphaover"));
+  ShaderCode code = merge.GetShaderCode(req);
+  OLIVE_ASSERT(!code.frag_code().isEmpty());
+  // alphaover.frag must handle alpha channel
+  OLIVE_ASSERT(code.frag_code().contains(QStringLiteral("alpha")) ||
+               code.frag_code().contains(QStringLiteral(".a")));
+
+  // With both base and blend textures: output must not be null
+  auto base_tex = std::make_shared<Texture>(params);
+  auto blend_tex = std::make_shared<Texture>(params);
+  NodeGlobals globals(params, AudioParams(), TimeRange(0, 1), LoopMode::kLoopModeOff);
+  NodeValueTable table;
+  NodeValueRow row;
+  row.insert(MergeNode::kBaseIn, NodeValue(NodeValue::kTexture, base_tex));
+  row.insert(MergeNode::kBlendIn, NodeValue(NodeValue::kTexture, blend_tex));
+  merge.Value(row, globals, &table);
+
+  TexturePtr out = table.Get(NodeValue::kTexture).toTexture();
+  OLIVE_ASSERT(out != nullptr);
+
+  OLIVE_TEST_END;
+}
+
+}

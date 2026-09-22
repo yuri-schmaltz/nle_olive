@@ -58,6 +58,8 @@ public:
     return track_cache_.size();
   }
 
+  bool HasSoloTrack() const;
+
   Project* GetParentGraph() const;
 
   const QString &track_input() const;
@@ -101,6 +103,8 @@ signals:
   void TrackRemoved(Track* track);
 
   void TrackHeightChanged(Track *track, int height);
+
+  void TrackSoloChanged(Track *track, bool soloed);
 
 private:
   void UpdateTrackIndexesFrom(int index);

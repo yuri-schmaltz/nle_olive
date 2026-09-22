@@ -330,7 +330,7 @@ public:
     return blocks_;
   }
 
-  virtual void InvalidateCache(const TimeRange& range, const QString& from, int element, InvalidateCacheOptions options) override;
+  virtual void InvalidateCache(const TimeRange& range, const QString& from = QString(), int element = -1, InvalidateCacheOptions options = InvalidateCacheOptions()) override;
 
   Block *VisibleBlockAtTime(const rational &t) const
   {
@@ -386,6 +386,14 @@ public:
 
   bool IsLocked() const;
 
+  float GetVolume() const;
+
+  float GetPan() const;
+
+  bool IsSoloed() const;
+
+  bool IsEffectivelyMuted() const;
+
   int GetArrayIndexFromBlock(Block* block) const;
 
   Sequence *sequence() const
@@ -405,11 +413,20 @@ public:
   static const QString kBlockInput;
   static const QString kMutedInput;
   static const QString kArrayMapInput;
+  static const QString kVolumeInput;
+  static const QString kPanInput;
+  static const QString kSoloInput;
 
 public slots:
   void SetMuted(bool e);
 
   void SetLocked(bool e);
+
+  void SetVolume(float v);
+
+  void SetPan(float p);
+
+  void SetSolo(bool e);
 
 signals:
   /**
@@ -436,6 +453,12 @@ signals:
    * @brief Signal emitted when the muted setting changes
    */
   void MutedChanged(bool e);
+
+  void VolumeChanged(float v);
+
+  void PanChanged(float p);
+
+  void SoloChanged(bool e);
 
   /**
    * @brief Signal emitted when the index has changed

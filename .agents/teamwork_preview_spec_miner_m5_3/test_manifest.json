@@ -1,0 +1,105 @@
+{
+  "app-id": "org.olivevideoeditor.Olive",
+  "runtime": "org.kde.Platform",
+  "runtime-version": "6.8",
+  "sdk": "org.kde.Sdk",
+  "command": "olive-editor",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=x11",
+    "--socket=wayland",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--filesystem=host",
+    "--talk-name=org.freedesktop.Notifications"
+  ],
+  "cleanup": [
+    "/include",
+    "/lib/pkgconfig",
+    "/share/man"
+  ],
+  "modules": [
+    {
+      "name": "portaudio",
+      "buildsystem": "autotools",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "http://files.portaudio.com/archives/pa_stable_v190700_20210406.tgz",
+          "sha256": "47ef442e38cde71054cb500331a476c84720335d90ed8d3d88d29a6d20195b03"
+        }
+      ]
+    },
+    {
+      "name": "imath",
+      "buildsystem": "cmake-ninja",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/AcademySoftwareFoundation/Imath/archive/refs/tags/v3.1.9.tar.gz",
+          "sha256": "f1d8aacd4610b55769f7470f5be97657ba4e5fa5064b237f94d36f86dbce269b"
+        }
+      ]
+    },
+    {
+      "name": "openexr",
+      "buildsystem": "cmake-ninja",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v3.2.1.tar.gz",
+          "sha256": "61e520b7ab3ba9254512270913f99e46a78888e7b3992b19280d0d86927d3122"
+        }
+      ]
+    },
+    {
+      "name": "opencolorio",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DOCIO_BUILD_APPS=OFF",
+        "-DOCIO_BUILD_PYTHON=OFF",
+        "-DOCIO_BUILD_TESTS=OFF",
+        "-DOCIO_BUILD_GPU_TESTS=OFF"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/AcademySoftwareFoundation/OpenColorIO/archive/refs/tags/v2.3.0.tar.gz",
+          "sha256": "55c4149cd2bb6d45672a08c0ef0beae9f56e54ee0d8ff3d100067ff5ea999908"
+        }
+      ]
+    },
+    {
+      "name": "openimageio",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DOIIO_BUILD_TESTS=OFF",
+        "-DOIIO_BUILD_TOOLS=OFF",
+        "-DUSE_PYTHON=OFF"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/AcademySoftwareFoundation/OpenImageIO/archive/refs/tags/v2.5.4.0.tar.gz",
+          "sha256": "01fb61680d22ebbfd5cf59b13904f44fa121ea24bf782c3c6f6634c01f687449"
+        }
+      ]
+    },
+    {
+      "name": "olive",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+        "-DBUILD_QT6=ON",
+        "-DBUILD_TESTS=OFF",
+        "-DUSE_WERROR=OFF"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../.."
+        }
+      ]
+    }
+  ]
+}

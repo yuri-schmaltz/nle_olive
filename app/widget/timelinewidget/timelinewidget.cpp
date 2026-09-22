@@ -31,6 +31,8 @@
 #include "dialog/speedduration/speeddurationdialog.h"
 #include "node/block/transition/transition.h"
 #include "node/nodeundo.h"
+#include "panel/panelmanager.h"
+#include "panel/timeline/timeline.h"
 #include "node/project/serializer/serializer.h"
 #include "task/project/import/import.h"
 #include "timeline/timelineundogeneral.h"
@@ -1306,6 +1308,14 @@ void TimelineWidget::ShowContextMenu()
 
     QAction* properties_action = menu.addAction(tr("Properties"));
     connect(properties_action, &QAction::triggered, this, &TimelineWidget::ShowSpeedDurationDialogForSelectedClips);
+
+    QAction* scenecut_action = menu.addAction(tr("Auto-Split Scenes..."));
+    connect(scenecut_action, &QAction::triggered, this, []() {
+      TimelinePanel* timeline = PanelManager::instance()->MostRecentlyFocused<TimelinePanel>();
+      if (timeline) {
+        timeline->ShowSceneCutDialogForSelectedClips();
+      }
+    });
   }
 
   if (selected.isEmpty()) {

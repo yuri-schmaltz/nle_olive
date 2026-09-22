@@ -1,0 +1,88 @@
+--- a/packaging/linux/build_appimage.sh
++++ b/packaging/linux/build_appimage.sh
+@@ -8,7 +8,35 @@
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ 
+-BUILD_DIR="${1:-build-linux-release}"
++STRICT="${STRICT_PACKAGING:-${STRICT:-1}}"
++BUILD_DIR=""
++
++for arg in "$@"; do
++    case "${arg}" in
++        --strict)
++            STRICT=1
++            ;;
++        --no-strict)
++            STRICT=0
++            ;;
++        -h|--help)
++            echo "Usage: $0 [options] [build-directory]"
++            echo ""
++            echo "Options:"
++            echo "  --strict      Fail with exit code 1 if appimagetool is missing (default)"
++            echo "  --no-strict   Do not fail if appimagetool is missing; stage AppDir only"
++            echo "  -h, --help    Show this help message"
++            exit 0
++            ;;
++        *)
++            if [ -z "${BUILD_DIR}" ]; then
++                BUILD_DIR="${arg}"
++            fi
++            ;;
++    esac
++done
++
++BUILD_DIR="${BUILD_DIR:-build-linux-release}"
+ if [[ "${BUILD_DIR}" = /* ]]; then
+     BUILD_PATH="${BUILD_DIR}"
+ else
+@@ -87,9 +115,10 @@
+ appdir_lib = os.path.join(appdir, "usr", "lib")
+ os.makedirs(appdir_lib, exist_ok=True)
+ 
+-# Explicit exclusion list: Glibc, graphics drivers, hardware acceleration, and X11 core
++# Explicit exclusion list: Glibc core/auxiliary, graphics drivers, hardware acceleration, and X11 core
+ EXCLUDED_PREFIXES = (
+     "libc.so", "libm.so", "libpthread.so", "libdl.so", "librt.so", "ld-linux",
++    "libresolv.so", "libnss_", "libutil.so", "libanl.so",
+     "libGL.so", "libGLX.so", "libEGL.so", "libGLdispatch.so", "libOpenGL.so",
+     "libdrm.so", "libgbm.so", "libvulkan.so", "libX11.so"
+ )
+@@ -183,9 +212,9 @@
+ export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
+ export XDG_DATA_DIRS="${APPDIR}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+ if [[ -x "${APPDIR}/usr/bin/olive-crashhandler" ]]; then
+-  "${APPDIR}/usr/bin/olive-editor" "$@"
+-  EXIT_CODE=$?
+-  while pgrep -x olive-crashhandler >/dev/null 2>&1; do
++  EXIT_CODE=0
++  "${APPDIR}/usr/bin/olive-editor" "$@" || EXIT_CODE=$?
++  while pgrep -u "$(id -u)" -x olive-crashhandler >/dev/null 2>&1; do
+     sleep 1
+   done
+   exit "${EXIT_CODE}"
+@@ -232,11 +261,18 @@
+     # Use -n (--no-appstream) to prevent packaging abort from upstream metainfo validation warnings
+     TOOL_ARGS+=("-n")
+     TOOL_ARGS+=("${APPDIR}" "${OUTPUT_APPIMAGE}")
+-    "${APPIMAGETOOL}" "${TOOL_ARGS[@]}"
++    if ! "${APPIMAGETOOL}" "${TOOL_ARGS[@]}"; then
++        echo "Error: appimagetool failed to generate package at: ${OUTPUT_APPIMAGE}" >&2
++        exit 1
++    fi
+     echo "=== AppImage packaging completed successfully: ${OUTPUT_APPIMAGE} ==="
+ else
+-    echo "Notice: appimagetool was not detected and could not be downloaded."
+-    echo "AppDir staged successfully and ready for manual packaging at: ${APPDIR}"
+-    echo "To finalize the AppImage, install appimagetool and run:"
+-    echo "  appimagetool \"${APPDIR}\" \"${OUTPUT_APPIMAGE}\""
++    echo "Error: appimagetool was not detected and could not be downloaded." >&2
++    echo "AppDir staged successfully at: ${APPDIR}, but final package could not be generated." >&2
++    echo "To finalize the AppImage, install appimagetool and run:" >&2
++    echo "  appimagetool \"${APPDIR}\" \"${OUTPUT_APPIMAGE}\"" >&2
++    if [ "${STRICT}" = "1" ] || [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
++        exit 1
++    fi
++    echo "Notice: Exiting with status 0 as non-strict mode was requested."
+ fi

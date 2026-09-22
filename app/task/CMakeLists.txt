@@ -20,6 +20,7 @@ add_subdirectory(export)
 add_subdirectory(precache)
 add_subdirectory(project)
 add_subdirectory(render)
+add_subdirectory(scenecut)
 
 set(OLIVE_SOURCES
   ${OLIVE_SOURCES}

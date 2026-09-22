@@ -22,9 +22,12 @@
 
 #ifdef USE_OTIO
 
+#include <cmath>
 #include <opentimelineio/clip.h>
 #include <opentimelineio/externalReference.h>
 #include <opentimelineio/gap.h>
+#include <opentimelineio/linearTimeWarp.h>
+#include <opentimelineio/marker.h>
 #include <opentimelineio/serializableCollection.h>
 #include <opentimelineio/serializableObject.h>
 #include <opentimelineio/transition.h>
@@ -33,11 +36,51 @@
 #include "node/block/gap/gap.h"
 #include "node/block/transition/transition.h"
 #include "node/project/footage/footage.h"
+#include "timeline/timelinemarker.h"
+#include "ui/colorcoding.h"
 
 namespace olive {
 
-SaveOTIOTask::SaveOTIOTask(Project *project) :
-  project_(project)
+namespace {
+
+std::string OliveColorToOTIOMarkerColor(int color)
+{
+  switch (color) {
+  case ColorCoding::kRed:
+  case ColorCoding::kMaroon:
+    return OTIO::Marker::Color::red;
+  case ColorCoding::kOrange:
+  case ColorCoding::kBrown:
+    return OTIO::Marker::Color::orange;
+  case ColorCoding::kYellow:
+    return OTIO::Marker::Color::yellow;
+  case ColorCoding::kOlive:
+  case ColorCoding::kLime:
+  case ColorCoding::kGreen:
+    return OTIO::Marker::Color::green;
+  case ColorCoding::kCyan:
+  case ColorCoding::kTeal:
+    return OTIO::Marker::Color::cyan;
+  case ColorCoding::kBlue:
+  case ColorCoding::kNavy:
+    return OTIO::Marker::Color::blue;
+  case ColorCoding::kPink:
+    return OTIO::Marker::Color::pink;
+  case ColorCoding::kPurple:
+    return OTIO::Marker::Color::purple;
+  case ColorCoding::kSilver:
+  case ColorCoding::kGray:
+    return OTIO::Marker::Color::white;
+  default:
+    return OTIO::Marker::Color::green;
+  }
+}
+
+} // namespace
+
+SaveOTIOTask::SaveOTIOTask(Project *project, const QString &filename) :
+  project_(project),
+  filename_(filename)
 {
   SetTitle(tr("Exporting project to OpenTimelineIO"));
 }
@@ -73,16 +116,21 @@ bool SaveOTIOTask::Run()
   }
 
   OTIO::ErrorStatus es;
+  QString out_file = filename_.isEmpty() ? project_->filename() : filename_;
+  if (out_file.isEmpty()) {
+    SetError(tr("No export filename specified."));
+    return false;
+  }
 
   if (serialized.size() == 1) {
     // Serialize timeline on its own
     auto t = serialized.front();
-    t->to_json_file(project_->filename().toStdString(), &es);
+    t->to_json_file(out_file.toStdString(), &es);
     t->possibly_delete();
   } else {
     // Serialize all into a SerializableCollection
     auto collection = new OTIO::SerializableCollection("Sequences", serialized);
-    collection->to_json_file(project_->filename().toStdString(), &es);
+    collection->to_json_file(out_file.toStdString(), &es);
     collection->possibly_delete();
 
     // Delete all existing timelines
@@ -97,13 +145,10 @@ bool SaveOTIOTask::Run()
 OTIO::Timeline *SaveOTIOTask::SerializeTimeline(Sequence *sequence)
 {
   auto otio_timeline = new OTIO::Timeline(sequence->GetLabel().toStdString());
-  // Retainers clean themselves up when the final user is removed
-  OTIO::Timeline::Retainer<OTIO::Timeline>* timeline_retainer = new OTIO::Timeline::Retainer<OTIO::Timeline>(otio_timeline);
-  // Suppress unused variable warning
-  Q_UNUSED(timeline_retainer);
 
   double rate = sequence->GetVideoParams().frame_rate().toDouble();
-  if (qIsNaN(rate)) {
+  if (qIsNaN(rate) || rate <= 0) {
+    otio_timeline->possibly_delete();
     return nullptr;
   }
 
@@ -113,7 +158,73 @@ OTIO::Timeline *SaveOTIOTask::SerializeTimeline(Sequence *sequence)
     return nullptr;
   }
 
+  SerializeMarkers(sequence, otio_timeline, rate);
+
   return otio_timeline;
+}
+
+void SaveOTIOTask::SerializeMarkers(Sequence *sequence, OTIO::Timeline *otio_timeline, double sequence_rate)
+{
+  if (!sequence->GetMarkers()) {
+    return;
+  }
+
+  for (auto it = sequence->GetMarkers()->cbegin(); it != sequence->GetMarkers()->cend(); ++it) {
+    TimelineMarker* marker = *it;
+    if (!marker) continue;
+
+    OTIO::TimeRange marked_range(
+        marker->time().in().toRationalTime(sequence_rate),
+        marker->time().length().toRationalTime(sequence_rate)
+    );
+
+    std::string color = OliveColorToOTIOMarkerColor(marker->color());
+    auto otio_marker = new OTIO::Marker(marker->name().toStdString(), marked_range, color);
+    otio_timeline->markers().push_back(otio_marker);
+  }
+}
+
+OTIO::Clip *SaveOTIOTask::SerializeClip(ClipBlock *block, const std::string &track_kind, double sequence_rate)
+{
+  auto otio_clip = new OTIO::Clip(block->GetLabel().toStdString());
+
+  otio_clip->set_source_range(OTIO::TimeRange(block->in().toRationalTime(sequence_rate),
+                                              block->length().toRationalTime(sequence_rate)));
+
+  QVector<Footage*> media_nodes = block->FindInputNodes<Footage>();
+  if (!media_nodes.isEmpty()) {
+    OTIO::TimeRange available_range;
+    if (track_kind == "Video") {
+      double source_frame_rate = block->connected_viewer() ?
+          block->connected_viewer()->GetVideoParams().frame_rate().toDouble() : sequence_rate;
+      if (qIsNaN(source_frame_rate) || source_frame_rate <= 0) {
+        source_frame_rate = sequence_rate;
+      }
+      available_range = OTIO::TimeRange(OTIO::RationalTime(0, source_frame_rate),
+                                        OTIO::RationalTime(media_nodes.first()->GetVideoParams().duration(),
+                                                           source_frame_rate));
+    } else if (track_kind == "Audio") {
+      double sample_rate = media_nodes.first()->GetAudioParams().sample_rate();
+      if (sample_rate <= 0) {
+        sample_rate = 48000;
+      }
+      available_range = OTIO::TimeRange(OTIO::RationalTime(0, sample_rate),
+                                        OTIO::RationalTime(media_nodes.first()->GetAudioParams().duration(),
+                                                           sample_rate));
+    }
+    auto media_ref = new OTIO::ExternalReference(media_nodes.first()->filename().toStdString(), available_range);
+    otio_clip->set_media_reference(media_ref);
+  }
+
+  double speed = block->speed();
+  bool reverse = block->reverse();
+  if (speed != 1.0 || reverse) {
+    double time_scalar = reverse ? -speed : speed;
+    auto time_warp = new OTIO::LinearTimeWarp(std::string(), "LinearTimeWarp", time_scalar);
+    otio_clip->effects().push_back(time_warp);
+  }
+
+  return otio_clip;
 }
 
 OTIO::Track *SaveOTIOTask::SerializeTrack(Track *track, double sequence_rate, rational max_track_length)
@@ -138,50 +249,23 @@ OTIO::Track *SaveOTIOTask::SerializeTrack(Track *track, double sequence_rate, ra
     OTIO::Composable* otio_block = nullptr;
 
     if (dynamic_cast<ClipBlock*>(block)) {
-      auto otio_clip = new OTIO::Clip(block->GetLabel().toStdString());
-
-      otio_clip->set_source_range(OTIO::TimeRange(block->in().toRationalTime(sequence_rate),
-                                                  block->length().toRationalTime(sequence_rate)));
-
-      QVector<Footage*> media_nodes = block->FindInputNodes<Footage>();
-      if (!media_nodes.isEmpty()) {
-
-        OTIO::TimeRange available_range;
-        if (otio_track->kind().compare("Video") == 0) {
-          // OTIO ExternalReference uses the source clips frame rate (or sample rate) as opposed to
-          // the sequences rate
-          double source_frame_rate = static_cast<ClipBlock*>(block)->connected_viewer()->GetVideoParams().frame_rate().toDouble();
-          available_range = OTIO::TimeRange(OTIO::RationalTime(0, source_frame_rate),
-                                            OTIO::RationalTime(media_nodes.first()->GetVideoParams().duration(),
-                                                               source_frame_rate));
-        } else if (otio_track->kind().compare("Audio") == 0) {
-          available_range = OTIO::TimeRange(OTIO::RationalTime(0, media_nodes.first()->GetAudioParams().sample_rate()),
-                                  OTIO::RationalTime(media_nodes.first()->GetAudioParams().duration(),
-                                                     media_nodes.first()->GetAudioParams().sample_rate()));
-        }
-        auto media_ref = new OTIO::ExternalReference(media_nodes.first()->filename().toStdString(), available_range);
-        otio_clip->set_media_reference(media_ref);
-      }
-
-      otio_block = otio_clip;
+      otio_block = SerializeClip(static_cast<ClipBlock*>(block), otio_track->kind(), sequence_rate);
     } else if (dynamic_cast<GapBlock*>(block)) {
-      otio_block = new OTIO::Gap(OTIO::TimeRange(block->in().toRationalTime(),
-                                 block->length().toRationalTime()),
-                                 block->GetLabel().toStdString()
-                                 );
+      otio_block = new OTIO::Gap(OTIO::TimeRange(block->in().toRationalTime(sequence_rate),
+                                                 block->length().toRationalTime(sequence_rate)),
+                                 block->GetLabel().toStdString());
     } else if (dynamic_cast<TransitionBlock*>(block)) {
       auto otio_transition = new OTIO::Transition(block->GetLabel().toStdString());
 
       TransitionBlock* our_transition = static_cast<TransitionBlock*>(block);
 
-      otio_transition->set_in_offset(our_transition->in_offset().toRationalTime());
-      otio_transition->set_out_offset(our_transition->out_offset().toRationalTime());
+      otio_transition->set_in_offset(our_transition->in_offset().toRationalTime(sequence_rate));
+      otio_transition->set_out_offset(our_transition->out_offset().toRationalTime(sequence_rate));
 
-      otio_block = new OTIO::Transition();
+      otio_block = otio_transition;
     }
 
     if (!otio_block) {
-      // We shouldn't ever get here, but catch without crashing if we ever do
       goto fail;
     }
 
@@ -243,6 +327,6 @@ bool SaveOTIOTask::SerializeTrackList(TrackList *list, OTIO::Timeline* otio_time
   return true;
 }
 
-}
+} // namespace olive
 
 #endif // USE_OTIO

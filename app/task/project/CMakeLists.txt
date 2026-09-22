@@ -19,6 +19,7 @@ if(OpenTimelineIO_FOUND)
   add_subdirectory(saveotio)
 endif()
 
+add_subdirectory(fcpxml)
 add_subdirectory(import)
 add_subdirectory(load)
 add_subdirectory(save)

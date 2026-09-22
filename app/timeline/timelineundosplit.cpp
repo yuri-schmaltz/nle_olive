@@ -118,19 +118,24 @@ void BlockSplitPreservingLinksCommand::prepare()
 
   splits_.resize(times_.size());
 
+  // Track the active tail block for each track as splits are applied
+  QVector<Block*> current_blocks = blocks_;
+
   for (int i=0;i<times_.size();i++) {
     const rational& time = times_.at(i);
 
-    QVector<Block*> splits(blocks_.size());
+    QVector<Block*> splits(current_blocks.size());
 
-    for (int j=0;j<blocks_.size();j++) {
-      Block* b = blocks_.at(j);
+    for (int j=0;j<current_blocks.size();j++) {
+      Block* b = current_blocks.at(j);
 
-      if (b->in() < time && b->out() > time) {
+      if (b && b->in() < time && b->out() > time) {
         BlockSplitCommand* split_command = new BlockSplitCommand(b, time);
         split_command->redo_now();
         splits.replace(j, split_command->new_block());
         commands_.append(split_command);
+
+        current_blocks[j] = split_command->new_block();
       } else {
         splits.replace(j, nullptr);
       }
@@ -143,20 +148,17 @@ void BlockSplitPreservingLinksCommand::prepare()
   for (int i=0;i<blocks_.size();i++) {
     Block* a = blocks_.at(i);
 
-    for (int j=0;j<blocks_.size();j++) {
-      if (i == j) {
-        continue;
-      }
-
+    for (int j=i+1;j<blocks_.size();j++) {
       Block* b = blocks_.at(j);
 
       if (Block::AreLinked(a, b)) {
         // These blocks are linked, ensure all the splits are linked too
-
         foreach (const QVector<Block*>& split_list, splits_) {
-          NodeLinkCommand* blc = new NodeLinkCommand(split_list.at(i), split_list.at(j), true);
-          blc->redo_now();
-          commands_.append(blc);
+          if (split_list.at(i) && split_list.at(j)) {
+            NodeLinkCommand* blc = new NodeLinkCommand(split_list.at(i), split_list.at(j), true);
+            blc->redo_now();
+            commands_.append(blc);
+          }
         }
       }
     }

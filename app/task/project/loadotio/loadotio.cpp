@@ -22,9 +22,12 @@
 
 #ifdef USE_OTIO
 
+#include <cmath>
 #include <opentimelineio/clip.h>
 #include <opentimelineio/externalReference.h>
 #include <opentimelineio/gap.h>
+#include <opentimelineio/linearTimeWarp.h>
+#include <opentimelineio/marker.h>
 #include <opentimelineio/serializableCollection.h>
 #include <opentimelineio/timeline.h>
 #include <opentimelineio/transition.h>
@@ -32,6 +35,7 @@
 #include <QFileInfo>
 #include <QThread>
 
+#include "config/config.h"
 #include "core.h"
 #include "node/audio/volume/volume.h"
 #include "node/block/clip/clip.h"
@@ -44,10 +48,43 @@
 #include "node/project/folder/folder.h"
 #include "node/project/footage/footage.h"
 #include "node/project/sequence/sequence.h"
+#include "timeline/timelinemarker.h"
 #include "timeline/timelineundogeneral.h"
+#include "ui/colorcoding.h"
 #include "window/mainwindow/mainwindowundo.h"
 
 namespace olive {
+
+namespace {
+
+int OTIOMarkerColorToOliveColor(const std::string& color_str)
+{
+  QString s = QString::fromStdString(color_str).trimmed().toUpper();
+  if (s == QStringLiteral("RED")) {
+    return ColorCoding::kRed;
+  } else if (s == QStringLiteral("ORANGE")) {
+    return ColorCoding::kOrange;
+  } else if (s == QStringLiteral("YELLOW")) {
+    return ColorCoding::kYellow;
+  } else if (s == QStringLiteral("GREEN")) {
+    return ColorCoding::kGreen;
+  } else if (s == QStringLiteral("CYAN")) {
+    return ColorCoding::kCyan;
+  } else if (s == QStringLiteral("BLUE")) {
+    return ColorCoding::kBlue;
+  } else if (s == QStringLiteral("PINK") || s == QStringLiteral("MAGENTA")) {
+    return ColorCoding::kPink;
+  } else if (s == QStringLiteral("PURPLE")) {
+    return ColorCoding::kPurple;
+  } else if (s == QStringLiteral("BLACK")) {
+    return ColorCoding::kGray;
+  } else if (s == QStringLiteral("WHITE")) {
+    return ColorCoding::kSilver;
+  }
+  return OLIVE_CONFIG("MarkerColor").toInt();
+}
+
+} // namespace
 
 LoadOTIOTask::LoadOTIOTask(const QString& s) :
   ProjectLoadBaseTask(s)
@@ -65,6 +102,8 @@ bool LoadOTIOTask::Run()
         .arg(GetFilename(), QString::fromStdString(es.full_description)));
     return false;
   }
+
+  OTIO::SerializableObject::Retainer<OTIO::SerializableObjectWithMetadata> root_retainer(root);
 
   project_ = new Project();
   project_->Initialize();
@@ -86,6 +125,8 @@ bool LoadOTIOTask::Run()
   } else {
     // Unknown root, we don't know what to do with this
     SetError(tr("Unknown OpenTimelineIO root element"));
+    delete project_;
+    project_ = nullptr;
     return false;
   }
 
@@ -133,6 +174,8 @@ bool LoadOTIOTask::Run()
     // Cancel to indicate to caller that this task did not complete and to simply dispose of it
     Cancel();
     qDeleteAll(timeline_sequnce_map); // Clear sequences
+    delete project_;
+    project_ = nullptr;
     return true;
   }
 
@@ -146,6 +189,8 @@ bool LoadOTIOTask::Run()
     sequence_footage->SetLabel(QString::fromStdString(timeline->name()));
     sequence_footage->setParent(project_);
     FolderAddChild(project_->root(), sequence_footage).redo_now();
+
+    LoadMarkers(timeline, sequence);
 
     // Iterate through tracks
     for (auto c : timeline->tracks()->children()) {
@@ -177,6 +222,8 @@ bool LoadOTIOTask::Run()
       auto clip_map = otio_track->children();
       if (es.outcome != OTIO::ErrorStatus::Outcome::OK) {
         SetError(tr("Failed to load clip"));
+        delete project_;
+        project_ = nullptr;
         return false;
       }
 
@@ -268,6 +315,8 @@ bool LoadOTIOTask::Run()
 
         if (otio_block->schema_name() == "Clip") {
           auto otio_clip = static_cast<OTIO::Clip*>(otio_block);
+          LoadClipEffects(otio_clip, static_cast<ClipBlock*>(block));
+
           if (!otio_clip->media_reference()) {
             continue;
           }
@@ -284,7 +333,6 @@ bool LoadOTIOTask::Run()
               imported_footage.insert(footage_url, probed_item);
               probed_item->setParent(project_);
 
-
               QFileInfo info(probed_item->filename());
               probed_item->SetLabel(info.fileName());
 
@@ -300,7 +348,6 @@ bool LoadOTIOTask::Run()
 
             // Position footage in its context
             block->SetNodePositionInContext(probed_item, QPointF(-2, 0));
-
 
             if (track->type() == Track::kVideo) {
               TransformDistortNode* transform = new TransformDistortNode();
@@ -330,6 +377,48 @@ bool LoadOTIOTask::Run()
   return true;
 }
 
+void LoadOTIOTask::LoadMarkers(OTIO::Timeline *timeline, Sequence *sequence)
+{
+  if (!timeline || !sequence || !sequence->GetMarkers()) {
+    return;
+  }
+
+  for (const auto &marker_retainer : timeline->markers()) {
+    auto otio_marker = marker_retainer.value;
+    if (!otio_marker) continue;
+
+    QString name = QString::fromStdString(otio_marker->name());
+    OTIO::TimeRange range = otio_marker->marked_range();
+    rational in_time = rational::fromRationalTime(range.start_time());
+    rational duration = rational::fromRationalTime(range.duration());
+    rational out_time = in_time + duration;
+    int color = OTIOMarkerColorToOliveColor(otio_marker->color());
+
+    new TimelineMarker(color, TimeRange(in_time, out_time), name, sequence->GetMarkers());
+  }
 }
+
+void LoadOTIOTask::LoadClipEffects(OTIO::Clip *otio_clip, ClipBlock *clip_block)
+{
+  if (!otio_clip || !clip_block) {
+    return;
+  }
+
+  for (const auto &effect_retainer : otio_clip->effects()) {
+    auto effect = effect_retainer.value;
+    if (!effect) continue;
+
+    if (auto ltw = dynamic_cast<OTIO::LinearTimeWarp*>(effect)) {
+      double scalar = ltw->time_scalar();
+      bool reverse = (scalar < 0.0);
+      double speed = std::abs(scalar);
+
+      clip_block->SetStandardValue(ClipBlock::kSpeedInput, speed);
+      clip_block->set_reverse(reverse);
+    }
+  }
+}
+
+} // namespace olive
 
 #endif // USE_OTIO

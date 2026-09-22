@@ -45,6 +45,16 @@ Track *TrackList::GetTrackAt(int index) const
   }
 }
 
+bool TrackList::HasSoloTrack() const
+{
+  for (Track *t : track_cache_) {
+    if (t && t->IsSoloed()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void TrackList::TrackConnected(Node *node, int element)
 {
   if (element == -1) {

@@ -16,3 +16,4 @@
 
 olive_add_test(Timeline timeline-tests timeline-tests.cpp)
 olive_add_test(Timeline TempoStream tempo-tests.cpp)
+olive_add_test(Timeline scenecut-split-tests scenecut-split-tests.cpp)

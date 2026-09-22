@@ -28,6 +28,9 @@
 #include "node/block/clip/clip.h"
 #include "node/block/gap/gap.h"
 #include "node/block/transition/transition.h"
+#include "node/output/track/tracklist.h"
+#include "node/project/sequence/sequence.h"
+#include "widget/slider/floatslider.h"
 
 namespace olive {
 
@@ -40,6 +43,9 @@ const double Track::kTrackHeightInterval = 0.5;
 const QString Track::kBlockInput = QStringLiteral("block_in");
 const QString Track::kMutedInput = QStringLiteral("muted_in");
 const QString Track::kArrayMapInput = QStringLiteral("arraymap_in");
+const QString Track::kVolumeInput = QStringLiteral("volume_in");
+const QString Track::kPanInput = QStringLiteral("pan_in");
+const QString Track::kSoloInput = QStringLiteral("solo_in");
 
 Track::Track() :
   track_type_(Track::kNone),
@@ -53,6 +59,20 @@ Track::Track() :
   AddInput(kBlockInput, NodeValue::kNone, InputFlags(kInputFlagArray | kInputFlagNotKeyframable | kInputFlagHidden | kInputFlagIgnoreInvalidations));
 
   AddInput(kMutedInput, NodeValue::kBoolean, false, InputFlags(kInputFlagNotConnectable | kInputFlagNotKeyframable));
+
+  AddInput(kVolumeInput, NodeValue::kFloat, 1.0,
+           InputFlags(kInputFlagNotConnectable | kInputFlagNotKeyframable));
+  SetInputProperty(kVolumeInput, QStringLiteral("min"), 0.0);
+  SetInputProperty(kVolumeInput, QStringLiteral("view"), FloatSlider::kDecibel);
+
+  AddInput(kPanInput, NodeValue::kFloat, 0.0,
+           InputFlags(kInputFlagNotConnectable | kInputFlagNotKeyframable));
+  SetInputProperty(kPanInput, QStringLiteral("min"), -1.0);
+  SetInputProperty(kPanInput, QStringLiteral("max"), 1.0);
+  SetInputProperty(kPanInput, QStringLiteral("view"), FloatSlider::kPercentage);
+
+  AddInput(kSoloInput, NodeValue::kBoolean, false,
+           InputFlags(kInputFlagNotConnectable | kInputFlagNotKeyframable));
 
   AddInput(kArrayMapInput, NodeValue::kBinary, InputFlags(kInputFlagStatic | kInputFlagHidden | kInputFlagIgnoreInvalidations));
 
@@ -102,7 +122,7 @@ QString Track::Description() const
 Node::ActiveElements Track::GetActiveElementsAtTime(const QString &input, const TimeRange &r) const
 {
   if (input == kBlockInput) {
-    if (IsMuted() || blocks_.empty() || r.in() >= track_length() || r.out() <= 0) {
+    if (IsEffectivelyMuted() || blocks_.empty() || r.in() >= track_length() || r.out() <= 0) {
       return ActiveElements::kNoElements;
     } else {
       int start = GetBlockIndexAtTime(r.in());
@@ -228,6 +248,26 @@ void Track::InputValueChangedEvent(const QString &input, int element)
 
   if (input == kMutedInput) {
     emit MutedChanged(IsMuted());
+  } else if (input == kSoloInput) {
+    emit SoloChanged(IsSoloed());
+
+    if (sequence_ && track_type_ == Track::kAudio) {
+      TrackList *tl = sequence_->track_list(Track::kAudio);
+      if (tl) {
+        emit tl->TrackSoloChanged(this, IsSoloed());
+
+        // Invalidate sibling audio tracks because their effective mute status inverted
+        for (Track *t : tl->GetTracks()) {
+          if (t != this) {
+            t->InvalidateCache(TimeRange(0, t->track_length()), kSoloInput, -1, InvalidateCacheOptions());
+          }
+        }
+      }
+    }
+  } else if (input == kVolumeInput) {
+    emit VolumeChanged(GetVolume());
+  } else if (input == kPanInput) {
+    emit PanChanged(GetPan());
   } else if (input == kArrayMapInput) {
     if (ignore_arraymap_ > 0) {
       ignore_arraymap_--;
@@ -243,6 +283,9 @@ void Track::Retranslate()
 
   SetInputName(kBlockInput, tr("Blocks"));
   SetInputName(kMutedInput, tr("Muted"));
+  SetInputName(kVolumeInput, tr("Volume"));
+  SetInputName(kPanInput, tr("Pan"));
+  SetInputName(kSoloInput, tr("Solo"));
 }
 
 void Track::SetIndex(const int &index)
@@ -556,6 +599,52 @@ void Track::SetLocked(bool e)
   locked_ = e;
 }
 
+float Track::GetVolume() const
+{
+  return GetStandardValue(kVolumeInput).toFloat();
+}
+
+float Track::GetPan() const
+{
+  return GetStandardValue(kPanInput).toFloat();
+}
+
+bool Track::IsSoloed() const
+{
+  return GetStandardValue(kSoloInput).toBool();
+}
+
+bool Track::IsEffectivelyMuted() const
+{
+  if (IsMuted()) {
+    return true;
+  }
+
+  if (sequence_ && track_type_ == Track::kAudio) {
+    TrackList *tl = sequence_->track_list(Track::kAudio);
+    if (tl && tl->HasSoloTrack()) {
+      return !IsSoloed();
+    }
+  }
+
+  return false;
+}
+
+void Track::SetVolume(float v)
+{
+  SetStandardValue(kVolumeInput, v);
+}
+
+void Track::SetPan(float p)
+{
+  SetStandardValue(kPanInput, p);
+}
+
+void Track::SetSolo(bool e)
+{
+  SetStandardValue(kSoloInput, e);
+}
+
 void Track::InputConnectedEvent(const QString &input, int element, Node *node)
 {
   if (arraymap_invalid_ && input == kBlockInput && element >= 0) {
@@ -632,6 +721,12 @@ void Track::ProcessAudioTrack(const NodeValueRow &value, const NodeGlobals &glob
   // All these blocks will need to output to a buffer so we create one here
   SampleBuffer block_range_buffer(globals.aparams(), range.length());
   block_range_buffer.silence();
+
+  // Early exit if track is effectively muted by mute flag or solo state
+  if (IsEffectivelyMuted()) {
+    table->Push(NodeValue::kSamples, QVariant::fromValue(block_range_buffer), this);
+    return;
+  }
 
   // Loop through active blocks retrieving their audio
   NodeValueArray arr = value[kBlockInput].toArray();
@@ -719,6 +814,40 @@ void Track::ProcessAudioTrack(const NodeValueRow &value, const NodeGlobals &glob
       for (int i=0; i<samples_from_this_block.audio_params().channel_count(); i++) {
         block_range_buffer.set(i, samples_from_this_block.data(i), destination_offset, copy_length);
       }
+    }
+  }
+
+  // Retrieve track volume (with fallback for raw test rows)
+  float vol = 1.0f;
+  if (value.contains(kVolumeInput) && value[kVolumeInput].type() != NodeValue::kNone) {
+    vol = static_cast<float>(value[kVolumeInput].toDouble());
+  } else {
+    vol = GetStandardValue(kVolumeInput).toFloat();
+  }
+  vol = std::max(0.0f, vol);
+
+  // Apply track volume
+  if (qFuzzyIsNull(vol)) {
+    block_range_buffer.silence();
+  } else if (!qFuzzyCompare(vol, 1.0f)) {
+    block_range_buffer.transform_volume(vol);
+  }
+
+  // Retrieve track stereo pan
+  float pan = 0.0f;
+  if (value.contains(kPanInput) && value[kPanInput].type() != NodeValue::kNone) {
+    pan = static_cast<float>(value[kPanInput].toDouble());
+  } else {
+    pan = GetStandardValue(kPanInput).toFloat();
+  }
+  pan = std::clamp(pan, -1.0f, 1.0f);
+
+  // Apply track pan to stereo buffer
+  if (!qFuzzyIsNull(pan) && block_range_buffer.channel_count() == 2 && !qFuzzyIsNull(vol)) {
+    if (pan > 0.0f) {
+      block_range_buffer.transform_volume_for_channel(0, 1.0f - pan);
+    } else {
+      block_range_buffer.transform_volume_for_channel(1, 1.0f + pan);
     }
   }
 

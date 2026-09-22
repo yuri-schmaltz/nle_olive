@@ -1,6 +1,9 @@
 # CMake artifacts
 /build*/
 
+# Generated distribution packages
+/dist/
+
 # Doxygen
 /docs/
 

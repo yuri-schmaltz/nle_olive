@@ -1,1 +1,5 @@
 olive_add_test(Project project-tests project-tests.cpp)
+olive_add_test(Project fcpxml-tests fcpxml-tests.cpp)
+if(OpenTimelineIO_FOUND)
+  olive_add_test(Project otio-tests otio-tests.cpp)
+endif()

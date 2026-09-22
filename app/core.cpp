@@ -63,6 +63,8 @@
 #include "render/diskmanager.h"
 #include "render/framemanager.h"
 #include "render/rendermanager.h"
+#include "task/project/fcpxml/loadfcpxml.h"
+#include "task/project/fcpxml/savefcpxml.h"
 #ifdef USE_OTIO
 #include "task/project/loadotio/loadotio.h"
 #include "task/project/saveotio/saveotio.h"
@@ -385,6 +387,88 @@ void Core::DialogExportShow()
     OpenExportDialogForViewer(viewer, false);
   }
 }
+
+void Core::DialogExportFCPXMLShow()
+{
+  ViewerOutput* viewer = GetSequenceToExport();
+  if (!viewer) {
+    return;
+  }
+
+  Sequence* sequence = dynamic_cast<Sequence*>(viewer);
+  if (!sequence) {
+    QMessageBox::critical(main_window_, tr("Export Error"),
+                          tr("The active item is not a sequence. Only sequences can be exported to Final Cut Pro 7 XML."));
+    return;
+  }
+
+  Project* active_project = GetActiveProject();
+  QString default_name = sequence->GetLabel();
+  if (default_name.isEmpty() && active_project) {
+    default_name = active_project->name();
+  }
+  if (!default_name.isEmpty()) {
+    default_name = FileFunctions::EnsureFilenameExtension(default_name, QStringLiteral("xml"));
+  }
+
+  QString filename = QFileDialog::getSaveFileName(
+      main_window_,
+      tr("Export Final Cut Pro 7 XML"),
+      default_name,
+      tr("Final Cut Pro 7 XML (*.xml);;All Files (*)"));
+
+  if (filename.isEmpty()) {
+    return;
+  }
+
+  filename = FileFunctions::EnsureFilenameExtension(filename, QStringLiteral("xml"));
+
+  SaveFCPXMLTask* task = new SaveFCPXMLTask(sequence, filename);
+  TaskDialog* task_dialog = new TaskDialog(task, tr("Export Final Cut Pro 7 XML"), main_window_);
+  task_dialog->open();
+}
+
+#ifdef USE_OTIO
+void Core::DialogExportOTIOShow()
+{
+  ViewerOutput* viewer = GetSequenceToExport();
+  if (!viewer) {
+    return;
+  }
+
+  Sequence* sequence = dynamic_cast<Sequence*>(viewer);
+  if (!sequence) {
+    QMessageBox::critical(main_window_, tr("Export Error"),
+                          tr("The active item is not a sequence. Only sequences can be exported to OpenTimelineIO."));
+    return;
+  }
+
+  Project* active_project = GetActiveProject();
+  QString default_name = sequence->GetLabel();
+  if (default_name.isEmpty() && active_project) {
+    default_name = active_project->name();
+  }
+  if (!default_name.isEmpty()) {
+    default_name = FileFunctions::EnsureFilenameExtension(default_name, QStringLiteral("otio"));
+  }
+
+  QString filename = QFileDialog::getSaveFileName(
+      main_window_,
+      tr("Export OpenTimelineIO"),
+      default_name,
+      tr("OpenTimelineIO (*.otio);;All Files (*)"));
+
+  if (filename.isEmpty()) {
+    return;
+  }
+
+  filename = FileFunctions::EnsureFilenameExtension(filename, QStringLiteral("otio"));
+
+  SaveOTIOTask* task = new SaveOTIOTask(active_project, filename);
+  TaskDialog* task_dialog = new TaskDialog(task, tr("Export OpenTimelineIO"), main_window_);
+  task_dialog->open();
+}
+#endif
 
 #ifdef USE_OTIO
 bool Core::DialogImportOTIOShow(const QList<Sequence*>& sequences) {
@@ -818,6 +902,8 @@ bool Core::SaveProjectInternal(const QString& override_filename)
                              "cannot open OpenTimelineIO files."));
     return false;
 #endif
+  } else if (override_filename.isEmpty() && open_project_->filename().endsWith(QStringLiteral(".xml"), Qt::CaseInsensitive)) {
+    psm = new SaveFCPXMLTask(open_project_, open_project_->filename());
   } else {
     bool use_compression = !open_project_->filename().endsWith(QStringLiteral(".ovexml"), Qt::CaseInsensitive);
     psm = new ProjectSaveTask(open_project_, use_compression);
@@ -1105,6 +1191,9 @@ QString Core::GetProjectFilter(bool include_any_filter)
     // Uncompressed XML Olive project
     {tr("Olive Project (Uncompressed XML)"), QStringLiteral("ovexml")},
 
+    // Final Cut Pro 7 XML
+    {tr("Final Cut Pro 7 XML"), QStringLiteral("xml")},
+
     // OpenTimelineIO project, if available
 #ifdef USE_OTIO
     {tr("OpenTimelineIO"), QStringLiteral("otio")}
@@ -1354,6 +1443,8 @@ void Core::OpenProjectInternal(const QString &filename, bool recovery_project)
                              "cannot open OpenTimelineIO files."));
     return;
 #endif
+  } else if (filename.endsWith(QStringLiteral(".xml"), Qt::CaseInsensitive)) {
+    load_task = new LoadFCPXMLTask(filename);
   } else {
     // Fallback to regular OVE project
     load_task = new ProjectLoadTask(filename);

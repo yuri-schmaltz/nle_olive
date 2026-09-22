@@ -49,6 +49,7 @@ MenuShared::MenuShared()
   edit_ripple_delete_item_ = Menu::CreateItem(this, "rippledelete", this, &MenuShared::RippleDeleteTriggered, tr("Shift+Del"));
   edit_split_item_ = Menu::CreateItem(this, "split", this, &MenuShared::SplitAtPlayheadTriggered, tr("Ctrl+K"));
   edit_speedduration_item_ = Menu::CreateItem(this, "speeddur", this, &MenuShared::SpeedDurationTriggered, tr("Ctrl+R"));
+  edit_detect_scenes_item_ = Menu::CreateItem(this, "detectscenecuts", this, &MenuShared::DetectSceneCutsTriggered, tr("Ctrl+Alt+K"));
 
   // List of addable items
   for (int i=0;i<Tool::kAddableCount;i++) {
@@ -148,6 +149,7 @@ void MenuShared::AddItemsForEditMenu(Menu *m, bool for_clips)
     m->addAction(edit_ripple_delete_item_);
     m->addAction(edit_split_item_);
     m->addAction(edit_speedduration_item_);
+    m->addAction(edit_detect_scenes_item_);
 
     m->addSeparator();
 
@@ -344,6 +346,15 @@ void MenuShared::SpeedDurationTriggered()
   }
 }
 
+void MenuShared::DetectSceneCutsTriggered()
+{
+  TimelinePanel* timeline = PanelManager::instance()->MostRecentlyFocused<TimelinePanel>();
+
+  if (timeline) {
+    timeline->ShowSceneCutDialogForSelectedClips();
+  }
+}
+
 void MenuShared::AddableItemTriggered()
 {
   QAction *a = static_cast<QAction*>(sender());
@@ -370,6 +381,7 @@ void MenuShared::Retranslate()
   edit_ripple_delete_item_->setText(tr("Ripple Delete"));
   edit_split_item_->setText(tr("Split"));
   edit_speedduration_item_->setText(tr("Speed/Duration"));
+  edit_detect_scenes_item_->setText(tr("Auto-Split &Scenes..."));
 
   for (QAction *a : qAsConst(addable_items_)) {
     a->setText(Tool::GetAddableObjectName(static_cast<Tool::AddableObject>(a->data().toInt())));

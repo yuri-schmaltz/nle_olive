@@ -41,6 +41,7 @@ public:
     kTrackOutput,
     kAudioVolume,
     kAudioPanning,
+    kAudioEqualizer,
     kMath,
     kTime,
     kTrigonometry,

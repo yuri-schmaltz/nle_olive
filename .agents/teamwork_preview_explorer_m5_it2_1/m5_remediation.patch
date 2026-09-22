@@ -1,0 +1,125 @@
+diff -uNr a/app/packaging/linux/AppRun b/app/packaging/linux/AppRun
+--- a/app/packaging/linux/AppRun	2026-09-20 11:25:01.002380577 -0300
++++ b/app/packaging/linux/AppRun	2026-09-20 15:51:18.337204636 -0300
+@@ -13,9 +13,9 @@
+ # Handle execution cleanly:
+ # If crashhandler exists, preserve exit status and wait via pgrep; otherwise, cleanly exec
+ if [[ -x "${APPDIR}/usr/bin/olive-crashhandler" ]]; then
+-  "${APPDIR}/usr/bin/olive-editor" "$@"
+-  EXIT_CODE=$?
+-  while pgrep -x olive-crashhandler >/dev/null 2>&1; do
++  EXIT_CODE=0
++  "${APPDIR}/usr/bin/olive-editor" "$@" || EXIT_CODE=$?
++  while pgrep -u "$(id -u)" -x olive-crashhandler >/dev/null 2>&1; do
+     sleep 1
+   done
+   exit "${EXIT_CODE}"
+diff -uNr a/packaging/flatpak/org.olivevideoeditor.Olive.json b/packaging/flatpak/org.olivevideoeditor.Olive.json
+--- a/packaging/flatpak/org.olivevideoeditor.Olive.json	2026-09-20 15:40:54.773333206 -0300
++++ b/packaging/flatpak/org.olivevideoeditor.Olive.json	2026-09-20 15:51:18.337060589 -0300
+@@ -25,8 +25,8 @@
+       "sources": [
+         {
+           "type": "archive",
+-          "url": "http://files.portaudio.com/archives/pa_stable_v190700_20210406.tgz",
+-          "sha256": "47ef442e38cde71054cb500331a476c84720335d90ed8d3d88d29a6d20195b03"
++          "url": "https://files.portaudio.com/archives/pa_stable_v190700_20210406.tgz",
++          "sha256": "47efbf42c77c19a05d22e627d42873e991ec0c1357219c0d74ce6a2948cb2def"
+         }
+       ]
+     },
+@@ -37,18 +37,22 @@
+         {
+           "type": "archive",
+           "url": "https://github.com/AcademySoftwareFoundation/Imath/archive/refs/tags/v3.1.9.tar.gz",
+-          "sha256": "f1d8aacd4610b55769f7470f5be97657ba4e5fa5064b237f94d36f86dbce269b"
++          "sha256": "f1d8aacd46afed958babfced3190d2d3c8209b66da451f556abd6da94c165cf3"
+         }
+       ]
+     },
+     {
+       "name": "openexr",
+       "buildsystem": "cmake-ninja",
++      "config-opts": [
++        "-DBUILD_TESTING=OFF",
++        "-DOPENEXR_BUILD_TOOLS=OFF"
++      ],
+       "sources": [
+         {
+           "type": "archive",
+           "url": "https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v3.2.1.tar.gz",
+-          "sha256": "61e520b7ab3ba9254512270913f99e46a78888e7b3992b19280d0d86927d3122"
++          "sha256": "61e175aa2203399fb3c8c2288752fbea3c2637680d50b6e306ea5f8ffdd46a9b"
+         }
+       ]
+     },
+@@ -65,7 +69,7 @@
+         {
+           "type": "archive",
+           "url": "https://github.com/AcademySoftwareFoundation/OpenColorIO/archive/refs/tags/v2.3.0.tar.gz",
+-          "sha256": "55c4149cd2bb6d45672a08c0ef0beae9f56e54ee0d8ff3d100067ff5ea999908"
++          "sha256": "32b7be676c110d849a77886d8a409159f0367309b2b2f5dae5aa0c38f42b445a"
+         }
+       ]
+     },
+@@ -81,7 +85,7 @@
+         {
+           "type": "archive",
+           "url": "https://github.com/AcademySoftwareFoundation/OpenImageIO/archive/refs/tags/v2.5.4.0.tar.gz",
+-          "sha256": "01fb61680d22ebbfd5cf59b13904f44fa121ea24bf782c3c6f6634c01f687449"
++          "sha256": "2e262ae5e5281f839651cd706e417c83c58294a26527ec184b466a2ba6ca31dc"
+         }
+       ]
+     },
+@@ -97,7 +101,14 @@
+       "sources": [
+         {
+           "type": "dir",
+-          "path": "../.."
++          "path": "../..",
++          "skip": [
++            ".git",
++            ".agents",
++            "build*",
++            "AppDir",
++            "dist"
++          ]
+         }
+       ]
+     }
+diff -uNr a/packaging/linux/build_appimage.sh b/packaging/linux/build_appimage.sh
+--- a/packaging/linux/build_appimage.sh	2026-09-20 15:41:58.670083634 -0300
++++ b/packaging/linux/build_appimage.sh	2026-09-20 15:51:18.337489634 -0300
+@@ -90,6 +90,7 @@
+ # Explicit exclusion list: Glibc, graphics drivers, hardware acceleration, and X11 core
+ EXCLUDED_PREFIXES = (
+     "libc.so", "libm.so", "libpthread.so", "libdl.so", "librt.so", "ld-linux",
++    "libresolv.so", "libnss_", "libutil.so", "libanl.so",
+     "libGL.so", "libGLX.so", "libEGL.so", "libGLdispatch.so", "libOpenGL.so",
+     "libdrm.so", "libgbm.so", "libvulkan.so", "libX11.so"
+ )
+@@ -183,9 +184,9 @@
+ export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
+ export XDG_DATA_DIRS="${APPDIR}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+ if [[ -x "${APPDIR}/usr/bin/olive-crashhandler" ]]; then
+-  "${APPDIR}/usr/bin/olive-editor" "$@"
+-  EXIT_CODE=$?
+-  while pgrep -x olive-crashhandler >/dev/null 2>&1; do
++  EXIT_CODE=0
++  "${APPDIR}/usr/bin/olive-editor" "$@" || EXIT_CODE=$?
++  while pgrep -u "$(id -u)" -x olive-crashhandler >/dev/null 2>&1; do
+     sleep 1
+   done
+   exit "${EXIT_CODE}"
+@@ -235,8 +236,7 @@
+     "${APPIMAGETOOL}" "${TOOL_ARGS[@]}"
+     echo "=== AppImage packaging completed successfully: ${OUTPUT_APPIMAGE} ==="
+ else
+-    echo "Notice: appimagetool was not detected and could not be downloaded."
+-    echo "AppDir staged successfully and ready for manual packaging at: ${APPDIR}"
+-    echo "To finalize the AppImage, install appimagetool and run:"
+-    echo "  appimagetool \"${APPDIR}\" \"${OUTPUT_APPIMAGE}\""
++    echo "Error: appimagetool was not detected and could not be downloaded." >&2
++    echo "AppDir staged successfully at: ${APPDIR}, but final package could not be generated." >&2
++    exit 1
+ fi

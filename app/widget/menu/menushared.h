@@ -81,6 +81,7 @@ private:
   QAction* edit_ripple_delete_item_;
   QAction* edit_split_item_;
   QAction* edit_speedduration_item_;
+  QAction* edit_detect_scenes_item_;
 
   // List of addable items
   QVector<QAction*> addable_items_;
@@ -157,6 +158,8 @@ private slots:
   void ColorLabelTriggered(int color_index);
 
   void SpeedDurationTriggered();
+
+  void DetectSceneCutsTriggered();
 
   void AddableItemTriggered();
 

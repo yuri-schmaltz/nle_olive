@@ -22,6 +22,7 @@
 
 #include <QCoreApplication>
 
+#include "audio/equalizer/equalizer.h"
 #include "audio/pan/pan.h"
 #include "audio/volume/volume.h"
 #include "block/clip/clip.h"
@@ -232,6 +233,8 @@ Node *NodeFactory::CreateFromFactoryIndex(const NodeFactory::InternalID &id)
     return new VolumeNode();
   case kAudioPanning:
     return new PanNode();
+  case kAudioEqualizer:
+    return new EqualizerNode();
   case kMath:
     return new MathNode();
   case kTrigonometry:

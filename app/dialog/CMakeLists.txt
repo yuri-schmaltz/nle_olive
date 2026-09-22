@@ -34,6 +34,7 @@ add_subdirectory(projectproperties)
 add_subdirectory(rendercancel)
 add_subdirectory(sequence)
 add_subdirectory(speedduration)
+add_subdirectory(scenecut)
 add_subdirectory(task)
 add_subdirectory(text)
 

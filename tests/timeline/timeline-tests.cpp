@@ -30,6 +30,7 @@
 #include "timeline/timelinemarker.h"
 #include "timeline/timelineundogeneral.h"
 #include "timeline/timelineundopointer.h"
+#include "timeline/timelineundoripple.h"
 #include "timeline/timelineundosplit.h"
 #include "undo/undocommand.h"
 
@@ -768,6 +769,92 @@ OLIVE_ADD_TEST(TestAISpeechToTextWorkflow)
   OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(RippleDeleteAreaUndoRedo)
+{
+  TIMELINE_TEST_START;
+  sequence.add_default_nodes();
+
+  Track *track = sequence.track_list(Track::kVideo)->GetTracks().first();
+
+  // Build: [A=4s][B=4s][C=4s] total=12s
+  ClipBlock *a = new ClipBlock(); a->set_length_and_media_out(rational(4)); a->setParent(&project); track->AppendBlock(a);
+  ClipBlock *b = new ClipBlock(); b->set_length_and_media_out(rational(4)); b->setParent(&project); track->AppendBlock(b);
+  ClipBlock *c = new ClipBlock(); c->set_length_and_media_out(rational(4)); c->setParent(&project); track->AppendBlock(c);
+
+  OLIVE_ASSERT_EQUAL(track->Blocks().size(), 3);
+  OLIVE_ASSERT_EQUAL(sequence.GetLength(), rational(12));
+
+  // Ripple-delete the region [4s, 8s] — removes block B
+  {
+    TrackRippleRemoveAreaCommand cmd(track, TimeRange(rational(4), rational(8)));
+    cmd.redo_now();
+
+    // After ripple delete: only A and C, C shifted left to 4s
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
+    OLIVE_ASSERT_EQUAL(sequence.GetLength(), rational(8));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(0)->in(), rational(0));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(0)->out(), rational(4));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(1)->in(), rational(4));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(1)->out(), rational(8));
+
+    // Undo: restore B and original positions
+    cmd.undo_now();
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 3);
+    OLIVE_ASSERT_EQUAL(sequence.GetLength(), rational(12));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(0)->in(), rational(0));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(1)->in(), rational(4));
+    OLIVE_ASSERT_EQUAL(track->Blocks().at(2)->in(), rational(8));
+
+    // Redo again
+    cmd.redo_now();
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
+    OLIVE_ASSERT_EQUAL(sequence.GetLength(), rational(8));
+  }
+
+  OLIVE_TEST_END;
 }
 
+OLIVE_ADD_TEST(MultiStepUndoRedoInvariants)
+{
+  TIMELINE_TEST_START;
+  sequence.add_default_nodes();
 
+  Track *track = sequence.track_list(Track::kVideo)->GetTracks().first();
+
+  // Step 1: add a 10s clip
+  ClipBlock *clip = new ClipBlock();
+  clip->set_length_and_media_out(rational(10));
+  clip->setParent(&project);
+  track->AppendBlock(clip);
+  OLIVE_ASSERT_EQUAL(track->Blocks().size(), 1);
+
+  // Step 2: split at t=6 -> [0..6][6..10]
+  BlockSplitCommand split(clip, rational(6));
+  split.redo_now();
+  OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
+  Block *right = split.new_block();
+  OLIVE_ASSERT(right != nullptr);
+  OLIVE_ASSERT_EQUAL(clip->length(), rational(6));
+  OLIVE_ASSERT_EQUAL(right->length(), rational(4));
+
+  // Step 3: ripple-delete the second half [6..10]
+  {
+    TrackRippleRemoveAreaCommand ripple(track, TimeRange(rational(6), rational(10)));
+    ripple.redo_now();
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 1);
+    OLIVE_ASSERT_EQUAL(track->Blocks().first()->length(), rational(6));
+
+    // Undo ripple: both halves back
+    ripple.undo_now();
+    OLIVE_ASSERT_EQUAL(track->Blocks().size(), 2);
+  }
+
+  // Undo split: one 10s clip again
+  split.undo_now();
+  OLIVE_ASSERT_EQUAL(track->Blocks().size(), 1);
+  OLIVE_ASSERT_EQUAL(clip->length(), rational(10));
+
+  OLIVE_TEST_END;
+}
+
+}

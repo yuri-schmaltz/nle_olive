@@ -61,6 +61,10 @@ MainMenu::MainMenu(MainWindow *parent) :
   file_menu_->addSeparator();
   file_export_menu_ = new Menu(file_menu_);
   file_export_media_item_ = file_export_menu_->AddItem("export", Core::instance(), &Core::DialogExportShow, tr("Ctrl+M"));
+  file_export_fcpxml_item_ = file_export_menu_->AddItem("exportfcpxml", Core::instance(), &Core::DialogExportFCPXMLShow);
+#ifdef USE_OTIO
+  file_export_otio_item_ = file_export_menu_->AddItem("exportotio", Core::instance(), &Core::DialogExportOTIOShow);
+#endif
   file_menu_->addSeparator();
   file_project_properties_item_ = file_menu_->AddItem("projectproperties", Core::instance(), &Core::DialogProjectPropertiesShow, tr("Shift+F10"));
   file_menu_->addSeparator();
@@ -328,6 +332,13 @@ void MainMenu::FileMenuAboutToShow()
 
   file_save_item_->setEnabled(active_project);
   file_save_as_item_->setEnabled(active_project);
+  file_export_menu_->setEnabled(active_project);
+  file_export_fcpxml_item_->setEnabled(active_project);
+#ifdef USE_OTIO
+  if (file_export_otio_item_) {
+    file_export_otio_item_->setEnabled(active_project);
+  }
+#endif
 
   if (active_project) {
     file_save_item_->setText(tr("&Save '%1'").arg(active_project->name()));
@@ -699,6 +710,12 @@ void MainMenu::Retranslate()
   file_import_item_->setText(tr("&Import..."));
   file_export_menu_->setTitle(tr("&Export"));
   file_export_media_item_->setText(tr("&Media..."));
+  file_export_fcpxml_item_->setText(tr("&Final Cut Pro 7 XML (*.xml)..."));
+#ifdef USE_OTIO
+  if (file_export_otio_item_) {
+    file_export_otio_item_->setText(tr("&OpenTimelineIO (*.otio)..."));
+  }
+#endif
   file_project_properties_item_->setText(tr("Project Properties"));
   file_exit_item_->setText(tr("E&xit"));
 

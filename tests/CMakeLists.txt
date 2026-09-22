@@ -86,8 +86,13 @@ endfunction()
 add_subdirectory(compositing)
 add_subdirectory(general)
 add_subdirectory(timeline)
+add_subdirectory(task)
 
 add_subdirectory(project)
 add_subdirectory(render)
 
 add_subdirectory(export)
+add_subdirectory(e2e)
+
+olive_add_test(Node equalizer-tests node/equalizer-tests.cpp)
+olive_add_test(Timeline track-audio-tests timeline/track-audio-tests.cpp)

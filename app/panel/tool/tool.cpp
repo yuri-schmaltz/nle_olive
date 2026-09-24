@@ -44,11 +44,25 @@ ToolPanel::ToolPanel() :
   connect(t, &Toolbar::SelectedTransitionChanged, Core::instance(), &Core::SetSelectedTransitionObject);
 
   Retranslate();
+
+  // Fix width of ToolPanel to single button column with layout margins
+  int btn_w = t->sizeHint().width();
+  if (btn_w <= 0) {
+    btn_w = 32;
+  }
+  int panel_w = btn_w + 8;
+  setFixedWidth(panel_w);
+
+  // Hide QTabBar scroll buttons (< and >) and remove tab title overflow card
+  setStyleSheet(QStringLiteral(
+    "QTabBar::scroller { width: 0px; height: 0px; }\n"
+    "QTabBar QToolButton { width: 0px; height: 0px; max-width: 0px; max-height: 0px; margin: 0px; padding: 0px; border: none; }\n"
+  ));
 }
 
 void ToolPanel::Retranslate()
 {
-  SetTitle(tr("Tools"));
+  SetTitle(QString());
 }
 
 }

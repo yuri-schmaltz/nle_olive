@@ -100,10 +100,8 @@ void Toolbar::resizeEvent(QResizeEvent *e)
 {
   super::resizeEvent(e);
 
-  int min_height = toolbar_btns_.size() * toolbar_btns_.first()->height() + (toolbar_btns_.size()-1) * layout_->verticalSpacing();
-  int new_height = e->size().height();
-  int columns_required = min_height / new_height + (min_height % new_height != 0);
-  setMinimumWidth(toolbar_btns_.first()->width() * columns_required + layout_->horizontalSpacing() * (columns_required-1) + 1);
+  int fixed_w = toolbar_btns_.first()->sizeHint().width() + layout_->contentsMargins().left() + layout_->contentsMargins().right();
+  setFixedWidth(fixed_w);
 }
 
 void Toolbar::Retranslate()

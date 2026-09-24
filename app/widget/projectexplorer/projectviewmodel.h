@@ -159,6 +159,8 @@ private slots:
 
   void ItemRenamed();
 
+  void ItemThumbnailChanged();
+
 };
 
 }

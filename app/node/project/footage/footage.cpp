@@ -22,7 +22,17 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QImageReader>
+#include <QPixmap>
 #include <QStandardPaths>
+#include <QtConcurrent/QtConcurrentRun>
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
+}
 
 #include "codec/decoder.h"
 #include "common/filefunctions.h"
@@ -134,6 +144,11 @@ void Footage::Clear()
 
   // Reset ready state
   valid_ = false;
+
+  // Reset thumbnail state
+  thumbnail_icon_ = QIcon();
+  thumbnail_loading_ = false;
+  thumbnail_loaded_ = false;
 }
 
 void Footage::SetValid()
@@ -413,10 +428,24 @@ QVariant Footage::data(const DataType &d) const
       VideoParams s = GetFirstEnabledVideoStream();
 
       if (s.is_valid() && s.video_type() != VideoParams::kVideoTypeStill) {
+        if (thumbnail_loaded_) {
+          if (!thumbnail_icon_.isNull()) {
+            return thumbnail_icon_;
+          }
+        } else if (!thumbnail_loading_) {
+          RequestThumbnail();
+        }
         return icon::Video;
       } else if (HasEnabledAudioStreams()) {
         return icon::Audio;
       } else if (s.is_valid() && s.video_type() == VideoParams::kVideoTypeStill) {
+        if (thumbnail_loaded_) {
+          if (!thumbnail_icon_.isNull()) {
+            return thumbnail_icon_;
+          }
+        } else if (!thumbnail_loading_) {
+          RequestThumbnail();
+        }
         return icon::Image;
       } else if (HasEnabledSubtitleStreams()) {
         return icon::Subtitles;
@@ -654,6 +683,130 @@ void Footage::DefaultColorSpaceChanged()
   if (inv) {
     InvalidateAll(kVideoParamsInput);
   }
+}
+
+void Footage::RequestThumbnail() const
+{
+  if (thumbnail_loading_ || thumbnail_loaded_) {
+    return;
+  }
+
+  thumbnail_loading_ = true;
+
+  const QString fn = filename();
+  if (fn.isEmpty() || !QFile::exists(fn)) {
+    thumbnail_loaded_ = true;
+    thumbnail_loading_ = false;
+    return;
+  }
+
+  const VideoParams s = GetFirstEnabledVideoStream();
+  const bool is_still = (s.is_valid() && s.video_type() == VideoParams::kVideoTypeStill);
+
+  (void)QtConcurrent::run([this, fn, is_still]() {
+    QImage thumbnail_img;
+
+    if (is_still) {
+      QImageReader reader(fn);
+      reader.setAutoTransform(true);
+      QSize orig_sz = reader.size();
+      if (orig_sz.isValid() && (orig_sz.width() > 256 || orig_sz.height() > 256)) {
+        reader.setScaledSize(orig_sz.scaled(256, 256, Qt::KeepAspectRatio));
+      }
+      thumbnail_img = reader.read();
+    } else {
+      // Extract first video frame using FFmpeg
+      AVFormatContext *fmt_ctx = nullptr;
+      if (avformat_open_input(&fmt_ctx, fn.toUtf8().constData(), nullptr, nullptr) == 0) {
+        if (avformat_find_stream_info(fmt_ctx, nullptr) >= 0) {
+          int video_stream_idx = -1;
+          for (unsigned int i = 0; i < fmt_ctx->nb_streams; ++i) {
+            if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+              video_stream_idx = static_cast<int>(i);
+              break;
+            }
+          }
+
+          if (video_stream_idx >= 0) {
+            AVCodecParameters *codec_par = fmt_ctx->streams[video_stream_idx]->codecpar;
+            const AVCodec *codec = avcodec_find_decoder(codec_par->codec_id);
+            if (codec) {
+              AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
+              if (codec_ctx) {
+                if (avcodec_parameters_to_context(codec_ctx, codec_par) >= 0 &&
+                    avcodec_open2(codec_ctx, codec, nullptr) >= 0) {
+                  AVPacket *packet = av_packet_alloc();
+                  AVFrame *frame = av_frame_alloc();
+
+                  bool frame_decoded = false;
+                  while (av_read_frame(fmt_ctx, packet) >= 0) {
+                    if (packet->stream_index == video_stream_idx) {
+                      if (avcodec_send_packet(codec_ctx, packet) == 0) {
+                        if (avcodec_receive_frame(codec_ctx, frame) == 0) {
+                          frame_decoded = true;
+                          av_packet_unref(packet);
+                          break;
+                        }
+                      }
+                    }
+                    av_packet_unref(packet);
+                  }
+
+                  if (frame_decoded) {
+                    // Compute target thumbnail size preserving aspect ratio (max 256x256)
+                    int src_w = frame->width;
+                    int src_h = frame->height;
+                    int dst_w = src_w;
+                    int dst_h = src_h;
+                    if (src_w > 256 || src_h > 256) {
+                      if (src_w >= src_h) {
+                        dst_w = 256;
+                        dst_h = qMax(1, (src_h * 256) / src_w);
+                      } else {
+                        dst_h = 256;
+                        dst_w = qMax(1, (src_w * 256) / src_h);
+                      }
+                    }
+
+                    struct SwsContext *sws = sws_getContext(
+                        src_w, src_h, static_cast<AVPixelFormat>(frame->format),
+                        dst_w, dst_h, AV_PIX_FMT_RGBA,
+                        SWS_BILINEAR, nullptr, nullptr, nullptr);
+
+                    if (sws) {
+                      QImage converted(dst_w, dst_h, QImage::Format_RGBA8888);
+                      uint8_t *dst_data[4] = { converted.bits(), nullptr, nullptr, nullptr };
+                      int dst_linesize[4] = { static_cast<int>(converted.bytesPerLine()), 0, 0, 0 };
+
+                      sws_scale(sws, frame->data, frame->linesize, 0, src_h, dst_data, dst_linesize);
+                      sws_freeContext(sws);
+
+                      thumbnail_img = converted.copy();
+                    }
+                  }
+
+                  av_frame_free(&frame);
+                  av_packet_free(&packet);
+                }
+                avcodec_free_context(&codec_ctx);
+              }
+            }
+          }
+        }
+        avformat_close_input(&fmt_ctx);
+      }
+    }
+
+    Footage *self = const_cast<Footage*>(this);
+    QMetaObject::invokeMethod(self, [self, thumbnail_img]() {
+      if (!thumbnail_img.isNull()) {
+        self->thumbnail_icon_ = QIcon(QPixmap::fromImage(thumbnail_img));
+      }
+      self->thumbnail_loaded_ = true;
+      self->thumbnail_loading_ = false;
+      emit self->ThumbnailChanged();
+    }, Qt::QueuedConnection);
+  });
 }
 
 }

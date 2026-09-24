@@ -218,6 +218,15 @@ private slots:
 
   void DefaultColorSpaceChanged();
 
+signals:
+  void ThumbnailChanged();
+
+private:
+  void RequestThumbnail() const;
+
+  mutable QIcon thumbnail_icon_;
+  mutable bool thumbnail_loading_{false};
+  mutable bool thumbnail_loaded_{false};
 };
 
 }

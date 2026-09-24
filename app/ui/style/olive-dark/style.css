@@ -27,3 +27,15 @@ QPushButton:checked {
 QTabBar {
   font-size: 9pt;
 }
+
+/* Hide tab bar scroll buttons if tabs overflow small panels */
+QTabBar::scroller {
+  width: 0px;
+  height: 0px;
+}
+QTabBar QToolButton {
+  width: 0px;
+  height: 0px;
+  max-width: 0px;
+  max-height: 0px;
+}

@@ -27,6 +27,7 @@
 #include "common/qtutils.h"
 #include "core.h"
 #include "node/nodeundo.h"
+#include "node/project/footage/footage.h"
 
 namespace olive {
 
@@ -458,6 +459,10 @@ void ProjectViewModel::ConnectItem(Node *n)
 {
   connect(n, &Node::LabelChanged, this, &ProjectViewModel::ItemRenamed);
 
+  if (Footage *f = dynamic_cast<Footage*>(n)) {
+    connect(f, &Footage::ThumbnailChanged, this, &ProjectViewModel::ItemThumbnailChanged);
+  }
+
   Folder* f = dynamic_cast<Folder*>(n);
   if (f) {
     connect(f, &Folder::BeginInsertItem, this, &ProjectViewModel::FolderBeginInsertItem);
@@ -474,6 +479,10 @@ void ProjectViewModel::ConnectItem(Node *n)
 void ProjectViewModel::DisconnectItem(Node *n)
 {
   disconnect(n, &Node::LabelChanged, this, &ProjectViewModel::ItemRenamed);
+
+  if (Footage *f = dynamic_cast<Footage*>(n)) {
+    disconnect(f, &Footage::ThumbnailChanged, this, &ProjectViewModel::ItemThumbnailChanged);
+  }
 
   Folder* f = dynamic_cast<Folder*>(n);
   if (f) {
@@ -535,6 +544,15 @@ void ProjectViewModel::ItemRenamed()
   QModelIndex index = CreateIndexFromItem(item);
 
   emit dataChanged(index, index, {Qt::DisplayRole, Qt::EditRole});
+}
+
+void ProjectViewModel::ItemThumbnailChanged()
+{
+  Node* item = static_cast<Node*>(sender());
+
+  QModelIndex index = CreateIndexFromItem(item);
+
+  emit dataChanged(index, index, {Qt::DecorationRole});
 }
 
 QModelIndex ProjectViewModel::CreateIndexFromItem(Node *item, int column)

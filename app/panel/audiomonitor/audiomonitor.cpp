@@ -34,11 +34,21 @@ AudioMonitorPanel::AudioMonitorPanel() :
   SetWidgetWithPadding(audio_monitor_);
 
   Retranslate();
+
+  // Set fixed width for AudioMonitorPanel so it remains fixed like the toolbar
+  const int kAudioMonitorFixedWidth = 50;
+  setFixedWidth(kAudioMonitorFixedWidth);
+
+  // Hide QTabBar scroll buttons (< and >) and remove tab title overflow card
+  setStyleSheet(QStringLiteral(
+    "QTabBar::scroller { width: 0px; height: 0px; }\n"
+    "QTabBar QToolButton { width: 0px; height: 0px; max-width: 0px; max-height: 0px; margin: 0px; padding: 0px; border: none; }\n"
+  ));
 }
 
 void AudioMonitorPanel::Retranslate()
 {
-  SetTitle(tr("Audio Monitor"));
+  SetTitle(QString());
 }
 
 }
